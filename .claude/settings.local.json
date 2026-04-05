@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:monday.com)",
+      "WebFetch(domain:developer.monday.com)",
+      "WebFetch(domain:community.monday.com)",
+      "WebFetch(domain:support.monday.com)",
+      "WebFetch(domain:appmarketplace.com)",
+      "WebFetch(domain:api.firecrawl.dev)",
+      "WebFetch(domain:openrouter.ai)",
+      "WebFetch(domain:render.com)",
+      "WebFetch(domain:api.render.com)",
+      "WebFetch(domain:reddit.com)",
+      "WebFetch(domain:www.reddit.com)",
+      "WebFetch(domain:x.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "Bash(node *)",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(git *)",
+      "Bash(curl *)",
+      "Bash(taskkill *)",
+      "Bash(tasklist *)",
+      "Bash(mkdir *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(grep *)",
+      "Bash(find *)",
+      "Bash(wc *)",
+      "Bash(tail *)",
+      "Bash(head *)",
+      "Bash(sleep *)",
+      "Bash(timeout *)",
+      "Bash(cd *)",
+      "Bash(echo *)",
+      "Bash(python3 *)"
+    ]
+  }
+}
