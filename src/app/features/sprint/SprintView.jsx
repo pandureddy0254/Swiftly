@@ -126,7 +126,7 @@ function SprintView() {
 
     try {
       // Use the shared context fetch which has caching
-      const result = await fetchDashboardData();
+      const result = await fetchDashboardData(selectedBoardIds);
       if (loadId !== loadRef.current) return;
 
       if (result && result.reportData) {

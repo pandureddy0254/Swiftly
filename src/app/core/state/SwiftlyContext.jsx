@@ -138,16 +138,14 @@ export function SwiftlyProvider({ token, children }) {
     return true;
   }, [state.lastFetchedAt, state._lastBoardIds]);
 
-  const fetchDashboardData = useCallback(async (force = false) => {
-    const boardIds = state.selectedBoardIds;
-    if (boardIds.length === 0) return null;
+  const fetchDashboardData = useCallback(async (boardIds, force = false) => {
+    if (!boardIds || boardIds.length === 0) return null;
 
     // Return cached data if valid
     if (!force && isCacheValid(boardIds) && state.reportData) {
       return { reportData: state.reportData, insights: state.insights };
     }
 
-    const loadId = ++loadRef.current;
     dispatch({ type: SET_LOADING, payload: true });
     dispatch({ type: SET_ERROR, payload: null });
 
@@ -160,8 +158,6 @@ export function SwiftlyProvider({ token, children }) {
         }),
         api.aiInsights(token, boardIds),
       ]);
-
-      if (loadId !== loadRef.current) return null;
 
       const report = reportResult.status === 'fulfilled' ? reportResult.value : null;
       const insightsData = insightsResult.status === 'fulfilled' ? insightsResult.value : null;
@@ -186,13 +182,11 @@ export function SwiftlyProvider({ token, children }) {
 
       return { reportData: report.data, insights: allInsights, report };
     } catch (err) {
-      if (loadId === loadRef.current) {
-        dispatch({ type: SET_ERROR, payload: err.message });
-        dispatch({ type: SET_LOADING, payload: false });
-      }
+      dispatch({ type: SET_ERROR, payload: err.message });
+      dispatch({ type: SET_LOADING, payload: false });
       return null;
     }
-  }, [token, state.selectedBoardIds, state.reportData, state.insights, isCacheValid]);
+  }, [token, state.reportData, state.insights, isCacheValid]);
 
   const fetchBoardItems = useCallback(async (boardId, force = false) => {
     if (!boardId) return [];

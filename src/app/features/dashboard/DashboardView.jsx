@@ -93,7 +93,7 @@ function DashboardView() {
     setError(null);
 
     try {
-      const result = await fetchDashboardData();
+      const result = await fetchDashboardData(selectedBoardIds);
 
       if (loadId !== loadRef.current) return;
 
