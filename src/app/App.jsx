@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useMonday } from '@core/hooks/useMonday';
+import DashboardView from '@features/dashboard/DashboardView';
 import ReportingView from '@features/reporting/ReportingView';
 import AiChatView from '@features/ai-chat/AiChatView';
 
 function App() {
   const { token, isReady, error, boardId, theme } = useMonday();
-  const [activeTab, setActiveTab] = useState('reporting');
+  const [activeTab, setActiveTab] = useState('dashboard');
 
   if (error && !isReady) {
     return (
@@ -51,8 +52,8 @@ function App() {
       {/* Tabs */}
       <div className="swiftly-tabs">
         <button
-          className={`swiftly-tab ${activeTab === 'reporting' ? 'swiftly-tab--active' : ''}`}
-          onClick={() => setActiveTab('reporting')}
+          className={`swiftly-tab ${activeTab === 'dashboard' ? 'swiftly-tab--active' : ''}`}
+          onClick={() => setActiveTab('dashboard')}
         >
           Dashboard
         </button>
@@ -72,8 +73,8 @@ function App() {
 
       {/* Feature Views — each wrapped for smooth transition */}
       <div key={activeTab} style={{ animation: 'fadeIn 0.25s ease' }}>
-        {activeTab === 'reporting' && (
-          <ReportingView token={token} currentBoardId={boardId} mode="dashboard" />
+        {activeTab === 'dashboard' && (
+          <DashboardView token={token} currentBoardId={boardId} />
         )}
         {activeTab === 'ai-chat' && (
           <AiChatView token={token} currentBoardId={boardId} />
