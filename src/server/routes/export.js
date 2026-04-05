@@ -26,10 +26,8 @@ router.post('/html', async (req, res, next) => {
     let aiReport = null;
     let insights = [];
     if (includeAi) {
-      [aiReport, insights] = await Promise.all([
-        aiEngine.generateStatusReport(aggregated),
-        aiEngine.generateInsights(aggregated),
-      ]);
+      aiReport = await aiEngine.generateStatusReport(aggregated);
+      insights = aiReport?.insights || [];
     }
 
     // Generate HTML
@@ -68,10 +66,8 @@ router.post('/text', async (req, res, next) => {
     let aiReport = null;
     let insights = [];
     if (includeAi) {
-      [aiReport, insights] = await Promise.all([
-        aiEngine.generateStatusReport(aggregated),
-        aiEngine.generateInsights(aggregated),
-      ]);
+      aiReport = await aiEngine.generateStatusReport(aggregated);
+      insights = aiReport?.insights || [];
     }
 
     const text = pdfGenerator.generateReportText(aggregated, {
@@ -108,10 +104,8 @@ router.post('/json', async (req, res, next) => {
     let aiReport = null;
     let insights = [];
     if (includeAi) {
-      [aiReport, insights] = await Promise.all([
-        aiEngine.generateStatusReport(aggregated),
-        aiEngine.generateInsights(aggregated),
-      ]);
+      aiReport = await aiEngine.generateStatusReport(aggregated);
+      insights = aiReport?.insights || [];
     }
 
     // Build per-board item details for full export

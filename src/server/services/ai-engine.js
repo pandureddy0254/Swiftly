@@ -1,6 +1,31 @@
 import config from '../config/index.js';
+import crypto from 'crypto';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+
+// AI response cache — prevents duplicate AI calls for the same data within 2 minutes
+const _aiCache = new Map();
+const AI_CACHE_TTL = 120_000;
+
+function getAiCacheKey(prefix, data) {
+  const hash = crypto.createHash('md5').update(JSON.stringify(data)).digest('hex').slice(0, 12);
+  return `${prefix}_${hash}`;
+}
+
+function getCachedAi(key) {
+  const entry = _aiCache.get(key);
+  if (entry && Date.now() - entry.ts < AI_CACHE_TTL) return entry.data;
+  _aiCache.delete(key);
+  return null;
+}
+
+function setCachedAi(key, data) {
+  if (_aiCache.size > 100) {
+    const oldest = _aiCache.keys().next().value;
+    _aiCache.delete(oldest);
+  }
+  _aiCache.set(key, { data, ts: Date.now() });
+}
 
 /**
  * Call OpenRouter API (OpenAI-compatible format).
@@ -101,6 +126,11 @@ function parseAiResponse(text) {
 export async function generateStatusReport(reportData, options = {}) {
   const { tone = 'professional', audience = 'manager', includeRecommendations = true } = options;
 
+  // Check AI cache to prevent duplicate calls
+  const cacheKey = getAiCacheKey('report', { reportData, tone, audience });
+  const cached = getCachedAi(cacheKey);
+  if (cached) return cached;
+
   const prompt = `You are Swiftly, an AI assistant for monday.com project management.
 
 Analyze the following project data and generate a clear, actionable status report.
@@ -136,11 +166,13 @@ Format with clear headers and bullet points. Be concise but thorough.`;
     const result = await callAI([{ role: 'user', content: prompt }], { maxTokens: 4096 });
     if (!result) return generateFallbackReport(reportData);
 
-    return {
+    const response = {
       report: result.text,
       model: result.model,
       tokensUsed: result.tokensUsed,
     };
+    setCachedAi(cacheKey, response);
+    return response;
   } catch (err) {
     console.warn('[Swiftly AI] Falling back to basic report:', err.message);
     return generateFallbackReport(reportData);

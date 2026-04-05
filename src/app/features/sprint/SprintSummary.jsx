@@ -34,16 +34,8 @@ function SprintSummary({ token, boardIds, items }) {
     }
   }, [token, boardIds]);
 
+  // Reset when boards change — summary generated on demand, not auto
   useEffect(() => {
-    if (boardIds.length > 0 && items.length > 0 && !fetchedRef.current) {
-      fetchedRef.current = true;
-      fetchSummary();
-    }
-  }, [boardIds, items.length, fetchSummary]);
-
-  // Reset when boards change
-  useEffect(() => {
-    fetchedRef.current = false;
     setSummary(null);
     setError(null);
   }, [boardIds]);
@@ -58,7 +50,7 @@ function SprintSummary({ token, boardIds, items }) {
           disabled={loading}
           style={{ fontSize: 12, padding: '4px 12px' }}
         >
-          {loading ? '\u23F3 Generating...' : '\u{1F504} Refresh'}
+          {loading ? '\u23F3 Generating...' : summary ? '\u{1F504} Refresh' : '\u{2728} Generate'}
         </button>
       </div>
 
@@ -85,7 +77,7 @@ function SprintSummary({ token, boardIds, items }) {
 
       {!loading && !summary && !error && (
         <div style={{ color: 'var(--swiftly-text-secondary)', fontSize: 13, padding: '16px 0', textAlign: 'center' }}>
-          Select a board to generate a sprint summary.
+          Click "Generate" to create an AI-powered sprint summary.
         </div>
       )}
     </div>

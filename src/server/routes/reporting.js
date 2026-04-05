@@ -69,11 +69,10 @@ router.post('/reports/generate', async (req, res, next) => {
     // Aggregate into report structure
     const aggregated = mondayApi.aggregateBoardData(crossBoardData);
 
-    // Generate AI-enhanced report and insights in parallel
-    const [aiReport, rawInsights] = await Promise.all([
-      aiEngine.generateStatusReport(aggregated, options),
-      aiEngine.generateInsights(aggregated),
-    ]);
+    // Generate AI report (includes insights in one call to save costs)
+    const aiReport = await aiEngine.generateStatusReport(aggregated, options);
+    // Extract insights from report or generate lightweight fallback
+    const rawInsights = aiReport?.insights || generateLocalInsights(aggregated);
 
     // Enrich insights with boardId by matching board name
     const boardNameToId = {};
@@ -128,5 +127,36 @@ router.post('/reports/quick', async (req, res, next) => {
     next(err);
   }
 });
+
+/**
+ * Generate rule-based insights without AI (zero cost).
+ * Used as fallback when AI report doesn't include insights.
+ */
+function generateLocalInsights(data) {
+  const insights = [];
+  const progress = data.overallProgress || 0;
+  const total = data.totalItems || 0;
+  const completed = data.completedItems || 0;
+  const stuck = data.statusBreakdown?.Stuck || data.statusBreakdown?.Blocked || 0;
+
+  if (progress === 0 && total > 0) {
+    insights.push({ type: 'risk', title: 'No items completed', description: `All ${total} items are still in progress. Consider prioritizing quick wins.`, severity: 'high' });
+  }
+  if (stuck > 0) {
+    insights.push({ type: 'risk', title: `${stuck} blocked item${stuck > 1 ? 's' : ''}`, description: 'Blocked items need immediate attention to unblock the team.', severity: 'high' });
+  }
+  if (progress > 0 && progress < 30) {
+    insights.push({ type: 'insight', title: 'Low completion rate', description: `Only ${progress}% complete. Review scope or allocate more resources.`, severity: 'medium' });
+  }
+  if (progress >= 75) {
+    insights.push({ type: 'insight', title: 'Strong progress', description: `${progress}% complete — on track for delivery.`, severity: 'low' });
+  }
+  for (const board of (data.boards || [])) {
+    if (board.progress === 0 && (board.totalItems || 0) > 0) {
+      insights.push({ type: 'risk', title: `${board.name || board.boardName} has no progress`, description: `${board.totalItems} items with 0% completion.`, severity: 'medium', board: board.name || board.boardName });
+    }
+  }
+  return insights;
+}
 
 export default router;

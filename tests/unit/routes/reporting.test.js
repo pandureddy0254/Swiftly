@@ -103,14 +103,17 @@ describe('POST /api/reports/generate', () => {
 
     mockGetCrossBoardItems.mockResolvedValue(crossBoardData);
     mockAggregateBoardData.mockReturnValue(aggregated);
-    mockGenerateStatusReport.mockResolvedValue({ report: '# Report', model: 'test', tokensUsed: 0 });
-    mockGenerateInsights.mockResolvedValue([{ type: 'insight', title: 'On track', severity: 'low', board: null }]);
+    mockGenerateStatusReport.mockResolvedValue({
+      report: '# Report', model: 'test', tokensUsed: 0,
+      insights: [{ type: 'insight', title: 'On track', severity: 'low', board: null }],
+    });
 
     const app = createApp();
     const res = await request(app, 'POST', '/api/reports/generate', { boardIds: ['1'] });
 
     expect(res.status).toBe(200);
-    expect(res.body.report).toEqual({ report: '# Report', model: 'test', tokensUsed: 0 });
+    expect(res.body.report.report).toBe('# Report');
+    expect(res.body.report.model).toBe('test');
     expect(res.body.data).toEqual(aggregated);
     expect(res.body.insights).toHaveLength(1);
     expect(res.body.generatedAt).toBeTruthy();
