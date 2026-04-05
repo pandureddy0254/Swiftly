@@ -24,7 +24,13 @@ const apiLimiter = rateLimit({ windowMs: 60000, max: 60, message: { error: 'Too 
 const aiLimiter = rateLimit({ windowMs: 60000, max: 15, message: { error: 'Too many AI requests' } });
 
 // --- Middleware ---
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet({
+  contentSecurityPolicy: false,
+  frameguard: false,          // Allow monday.com to embed in iframe
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: false,
+  crossOriginResourcePolicy: false,
+}));
 app.use(cors({
   origin: config.isDev ? true : /\.monday\.com$/,
 }));
