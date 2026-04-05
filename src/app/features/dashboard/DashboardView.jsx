@@ -671,7 +671,12 @@ function DashboardView() {
       autoSelectedRef.current = true;
       const eligible = boards.filter((b) => {
         const name = (b.name || '').toLowerCase();
-        return !name.includes('swiftly') && (b.items_count !== 0 && b.totalItems !== 0);
+        // Filter out: host board, subitems boards, welcome/onboarding boards, empty boards
+        if (name.includes('swiftly')) return false;
+        if (name.startsWith('subitems of')) return false;
+        if (name.includes('welcome to your')) return false;
+        if (b.items_count === 0 && b.totalItems === 0) return false;
+        return true;
       });
       if (eligible.length > 0) {
         setSelectedBoardIds(eligible.map((b) => String(b.id)));
@@ -842,8 +847,8 @@ function DashboardView() {
             return (
               <button
                 key={board.id}
-                onClick={() => toggleBoard(board.id)}
-                className={`swiftly-board-chip ${selectedBoardIds.includes(board.id) ? 'swiftly-board-chip--selected' : ''}`}
+                onClick={() => toggleBoard(String(board.id))}
+                className={`swiftly-board-chip ${selectedBoardIds.includes(String(board.id)) ? 'swiftly-board-chip--selected' : ''}`}
                 style={isHost ? { opacity: 0.5 } : undefined}
                 title={isHost ? 'Host board (auto-excluded)' : board.name}
               >
