@@ -73,13 +73,21 @@ function App() {
           ))}
         </div>
 
-        {/* Feature Views */}
-        <div key={activeTab} className="swiftly-fade-in">
-          {activeTab === 'dashboard' && <DashboardView />}
-          {activeTab === 'ai-chat' && <AiChatView />}
-          {activeTab === 'sprint' && <SprintView />}
-          {activeTab === 'time-tracking' && <TimeTrackingView />}
-          {activeTab === 'reports' && <ReportingView mode="reports" />}
+        {/* Feature Views — all mounted, hidden with CSS to preserve state */}
+        <div className="swiftly-fade-in" style={{ display: activeTab === 'dashboard' ? 'block' : 'none' }}>
+          <DashboardView />
+        </div>
+        <div style={{ display: activeTab === 'ai-chat' ? 'block' : 'none' }}>
+          <AiChatView />
+        </div>
+        <div style={{ display: activeTab === 'sprint' ? 'block' : 'none' }}>
+          <SprintView />
+        </div>
+        <div style={{ display: activeTab === 'time-tracking' ? 'block' : 'none' }}>
+          <TimeTrackingView />
+        </div>
+        <div style={{ display: activeTab === 'reports' ? 'block' : 'none' }}>
+          <ReportingView mode="reports" />
         </div>
       </SwiftlyProvider>
     </div>

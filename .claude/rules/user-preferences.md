@@ -31,6 +31,17 @@
 - Uses Windows 10 with bash shell
 - Uses Synthesia for marketing videos
 
+## Component Architecture
+- Break large view files into smaller focused components (keep files under ~300 lines)
+- Makes debugging easier — can read one component instead of 1000 lines
+- Each feature should have its own folder with sub-components
+
+## Deployment Pipeline
+- ALWAYS run the deploy pipeline (npm run predeploy → git push) after completing fixes
+- Do NOT wait for user to tell you to deploy — do it automatically
+- Use the deploy skill after every completed fix/feature batch
+- Push to GitHub triggers Render auto-deploy
+
 ## What NOT To Do
 - Don't build vague/generic features — everything must be specific and actionable
 - Don't use tunnels that keep dying (localtunnel, cloudflared) for production — deploy to real hosting

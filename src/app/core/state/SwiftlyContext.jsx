@@ -27,6 +27,7 @@ const SET_LOADING = 'SET_LOADING';
 const SET_ERROR = 'SET_ERROR';
 const INVALIDATE_CACHE = 'INVALIDATE_CACHE';
 const INVALIDATE_BOARD_ITEMS = 'INVALIDATE_BOARD_ITEMS';
+const TOGGLE_BOARD = 'TOGGLE_BOARD';
 
 function reducer(state, action) {
   switch (action.type) {
@@ -67,6 +68,15 @@ function reducer(state, action) {
         _lastBoardIds: null,
         boardItems: {},
       };
+    case TOGGLE_BOARD: {
+      const id = String(action.payload);
+      return {
+        ...state,
+        selectedBoardIds: state.selectedBoardIds.includes(id)
+          ? state.selectedBoardIds.filter((x) => x !== id)
+          : [...state.selectedBoardIds, id],
+      };
+    }
     case INVALIDATE_BOARD_ITEMS:
       if (action.payload) {
         const next = { ...state.boardItems };
@@ -113,14 +123,8 @@ export function SwiftlyProvider({ token, children }) {
   }, []);
 
   const toggleBoard = useCallback((boardId) => {
-    const id = String(boardId);
-    dispatch({
-      type: SET_SELECTED_BOARDS,
-      payload: state.selectedBoardIds.includes(id)
-        ? state.selectedBoardIds.filter((x) => x !== id)
-        : [...state.selectedBoardIds, id],
-    });
-  }, [state.selectedBoardIds]);
+    dispatch({ type: TOGGLE_BOARD, payload: boardId });
+  }, []);
 
   const isCacheValid = useCallback((boardIds) => {
     if (!state.lastFetchedAt) return false;
