@@ -1,0 +1,18 @@
+{
+  "name": "Swiftly",
+  "appId": "11092514",
+  "description": "AI-Powered Command Center for monday.com — Cross-board reports, AI chat, and smart insights.",
+  "clientId": "3ce58d1bb51ce05bfd065244cf6a0901",
+  "features": {
+    "boardView": {
+      "url": "/",
+      "name": "Swiftly Reports & AI",
+      "description": "Cross-board reporting with AI insights and chat assistant"
+    },
+    "dashboardWidget": {
+      "url": "/?view=widget",
+      "name": "Swiftly KPIs",
+      "description": "At-a-glance KPI metrics across your boards"
+    }
+  }
+}

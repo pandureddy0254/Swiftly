@@ -1,0 +1,23 @@
+<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="192" height="192" rx="40" fill="#0073EA"/>
+
+  <!-- Subtle gradient overlay -->
+  <rect width="192" height="192" rx="40" fill="url(#grad)" opacity="0.3"/>
+
+  <!-- Lightning bolt / swift arrow shape -->
+  <path d="M108 36L68 96H92L78 156L138 88H110L124 36H108Z" fill="white" opacity="0.95"/>
+
+  <!-- Small chart bars at bottom-left for "analytics" hint -->
+  <rect x="36" y="128" width="12" height="28" rx="3" fill="white" opacity="0.5"/>
+  <rect x="54" y="116" width="12" height="40" rx="3" fill="white" opacity="0.6"/>
+  <rect x="72" y="108" width="12" height="48" rx="3" fill="white" opacity="0.4"/>
+
+  <!-- Gradient definition -->
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="192" y2="192">
+      <stop offset="0%" stop-color="#00D2FF"/>
+      <stop offset="100%" stop-color="#0073EA"/>
+    </linearGradient>
+  </defs>
+</svg>
