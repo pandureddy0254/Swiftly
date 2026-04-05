@@ -13,6 +13,8 @@
 - Values working features over perfect code — ship fast, iterate
 - Wants enterprise-grade quality but fast delivery
 - User validates ideas with multiple LLMs (Grok, ChatGPT) — be thorough in reasoning
+- Think from all directions as a technical solution architect
+- Consider: edge cases, API keys, multi-tenant architecture, marketplace users
 
 ## Things User Has Corrected
 - "It is vague" — AI responses were too generic, not using actual item data. Fixed by passing full item-level data to AI.
@@ -21,6 +23,10 @@
 - "Use a better model" — Switched from Gemini Flash to Claude Sonnet for quality.
 - "This has to be intelligent agentic AI" — AI must combine board data with domain expertise, never say "I can't".
 - "Not for some random company" — Build for enterprise, not hobby projects.
+- "how many times you fix" — When toggle was broken, kept applying surface-level fixes instead of finding the real CSS root cause. Dig deeper, compare working vs broken code.
+- "why you did not do it" — Don't wait for user to tell you to deploy. Run tests, build, push automatically after fixes.
+- "do not keep asking for repetitive commands" — Permissions must be configured broadly. Don't prompt for every command.
+- "you need to think from all the directions as a technical solution architect" — Consider multi-tenant, other users, edge cases, not just the happy path.
 
 ## Technical Preferences
 - OpenRouter for AI (not direct Anthropic SDK) — flexibility to switch models
@@ -30,21 +36,29 @@
 - Has Firecrawl API key for web scraping
 - Uses Windows 10 with bash shell
 - Uses Synthesia for marketing videos
+- Git account: pandureddy0254 (pinned via local git config)
 
 ## Component Architecture
 - Break large view files into smaller focused components (keep files under ~300 lines)
 - Makes debugging easier — can read one component instead of 1000 lines
 - Each feature should have its own folder with sub-components
+- Use shared components (BoardSelector, Toast) from @core/components
 
 ## Deployment Pipeline
-- ALWAYS run the deploy pipeline (npm run predeploy → git push) after completing fixes
+- ALWAYS run the deploy pipeline (npm test → npm run build → git push) after completing fixes
 - Do NOT wait for user to tell you to deploy — do it automatically
-- Use the deploy skill after every completed fix/feature batch
 - Push to GitHub triggers Render auto-deploy
+- Verify with curl to health endpoint after deploy
+
+## Debugging Approach
+- When something doesn't work, COMPARE working code vs broken code
+- Don't assume it's browser cache — check the actual code structure
+- Use Playwright to verify, but also check CSS (::before overlays, overflow, z-index, pointer-events)
+- elementFromPoint and JS .click() can bypass CSS overlay issues — always test real UI clicks
 
 ## What NOT To Do
 - Don't build vague/generic features — everything must be specific and actionable
-- Don't use tunnels that keep dying (localtunnel, cloudflared) for production — deploy to real hosting
+- Don't use tunnels that keep dying (localtunnel, cloudflared) for production
 - Don't use @mondaycom/apps-cli in production builds — it breaks with patch-package
 - Don't put vite in devDependencies — Render.com won't install it
 - Don't use Anthropic SDK directly — use OpenRouter REST API
@@ -52,3 +66,8 @@
 - Don't include management API keys when chat API keys are needed
 - Don't use column_values { title } — use column_values { column { title } } for API 2025-04
 - Don't use unused GraphQL variables (e.g., $cursor when not referenced in query)
+- Don't use key={activeTab} for tab switching — causes state loss on tab change
+- Don't put toggle logic in useCallback closures — use reducer actions
+- Don't read state.selectedBoardIds in fetchDashboardData closure — pass as parameter
+- Don't forget pointer-events: none on decorative ::before/::after overlays
+- Don't assume Playwright JS .click() = real user click — CSS overlays can block real clicks
