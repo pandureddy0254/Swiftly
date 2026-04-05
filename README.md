@@ -1,45 +1,50 @@
-# ⚡ Swiftly
+# Swiftly
 
 **AI-Powered Command Center for monday.com**
 
-Swiftly is a monday.com marketplace app that turns your board data into actionable intelligence. Cross-board reporting, AI chat assistant, one-click task creation, and smart insights — all in one app.
-
-![Swiftly](assets/logo.svg)
+Swiftly is a monday.com marketplace app that turns your board data into actionable intelligence. Cross-board reporting, AI chat assistant, sprint management, time tracking, and smart insights — all in one unified command center.
 
 ---
 
 ## Features
 
-### 📊 Cross-Board Reporting
-- Aggregate data across multiple boards in one view
-- Full subitem support (something native dashboards can't do)
-- KPI cards, bar charts, pie charts, and progress tables
-- Status distribution and group breakdown analysis
+### Dashboard — Command Center
+- Health score gauge with breakdown analysis
+- Smart suggestions (rule-based + AI-powered)
+- Board overview cards with progress tracking
+- Activity timeline across all boards
+- Quick action buttons for common workflows
 
-### 🤖 Agentic AI Assistant
+### AI Agent
 - Ask questions about your boards in natural language
 - AI deep dives into tasks with expert analysis
 - **One-click action buttons** — create subitems, update statuses, assign people directly from AI suggestions
+- Conversation memory within sessions
 - Powered by Claude Sonnet via OpenRouter (configurable model)
 
-### 📥 One-Click Import
-- AI suggests subtasks → click "Import" → subitems created on monday.com instantly
-- No copy-pasting, no manual entry
-- Works with any item across any board
+### Sprint Management
+- Kanban board (Backlog / To Do / In Progress / Done)
+- Burndown chart with ideal vs actual progress
+- Velocity metrics and story point tracking
+- AI-powered sprint summary
 
-### 📄 Export & Reports
+### Time Tracking
+- Start/stop timer with item selector
+- Billable vs non-billable toggle
+- Subitem time rollup to parent items
+- Weekly and monthly bar charts
+- Full time log with export capability
+- LocalStorage persistence (works offline)
+
+### Reports & Export
 - AI-generated professional status reports
-- Export as PDF, TXT, or JSON
-- Scheduled report delivery (coming soon)
-- Enterprise-grade HTML reports with branding
+- Cross-board KPI cards, bar charts, pie charts
+- Board breakdown tables with item-level detail
+- AI insight cards with action buttons
+- Export as PDF (HTML), TXT, or JSON
 
-### 🎯 Smart Insights
-- Automatic risk detection and anomaly analysis
-- Actionable insight cards with buttons (View Items, Create Action Plan, Send Reminder)
-- Board health scoring and progress tracking
-
-### 📈 Dashboard Widget
-- At-a-glance KPI metrics
+### Dashboard Widget
+- At-a-glance KPI metrics for monday.com dashboards
 - Circular progress ring with board breakdown
 - Status distribution bars
 - Auto-refreshes every 5 minutes
@@ -54,9 +59,11 @@ Swiftly is a monday.com marketplace app that turns your board data into actionab
 | **Backend** | Node.js + Express |
 | **AI** | OpenRouter (Claude Sonnet, GPT-4o, Gemini, Llama) |
 | **monday.com** | monday-sdk-js + GraphQL API (v2025-04) |
+| **Auth** | JWT verification of monday.com session tokens |
 | **Charts** | Recharts |
-| **Styling** | Custom CSS Design System (monday.com Vibe-inspired) |
-| **Deployment** | Render.com / Monday Code |
+| **Styling** | Custom CSS Design System (monday.com-inspired) |
+| **Testing** | Vitest (64 unit tests) + Playwright (e2e) |
+| **Deployment** | Render.com (auto-deploy from GitHub) |
 
 ---
 
@@ -65,38 +72,33 @@ Swiftly is a monday.com marketplace app that turns your board data into actionab
 ```
 Swiftly/
 ├── src/
-│   ├── app/                        # React Frontend
-│   │   ├── App.jsx                 # Main app with 3-tab layout
+│   ├── app/                          # React Frontend
+│   │   ├── App.jsx                   # 5-tab layout
 │   │   ├── core/
-│   │   │   ├── api/swiftly-client.js    # API client (all endpoints)
-│   │   │   └── hooks/useMonday.js       # monday.com SDK integration
+│   │   │   ├── api/swiftly-client.js # REST API client
+│   │   │   ├── components/           # Shared: BoardSelector, Toast
+│   │   │   ├── hooks/useMonday.js    # monday.com SDK integration
+│   │   │   └── state/               # SwiftlyContext (React Context + useReducer)
 │   │   ├── features/
-│   │   │   ├── reporting/          # Dashboard & Reports views
-│   │   │   ├── ai-chat/           # AI Agent view with action buttons
-│   │   │   └── dashboard-widget/  # KPI Dashboard Widget
-│   │   └── styles/global.css      # Design system
+│   │   │   ├── dashboard/            # Command center (9 components)
+│   │   │   ├── ai-chat/              # AI agent (4 components)
+│   │   │   ├── sprint/               # Sprint management (5 components)
+│   │   │   ├── time-tracking/        # Time tracking (6 components)
+│   │   │   ├── reporting/            # Reports & export (5 components)
+│   │   │   └── dashboard-widget/     # KPI widget
+│   │   └── styles/global.css         # Full design system
 │   │
-│   └── server/                     # Express Backend
-│       ├── index.js               # Server entry point
-│       ├── config/                # Environment config
-│       ├── middleware/auth.js     # monday.com auth + error handling
-│       ├── routes/
-│       │   ├── reporting.js       # Board data & report generation
-│       │   ├── ai.js             # AI chat & insights
-│       │   ├── actions.js        # Write operations (create/update/delete)
-│       │   ├── export.js         # PDF/TXT/JSON export
-│       │   └── health.js         # Health check
-│       └── services/
-│           ├── monday-api.js     # monday.com GraphQL client
-│           ├── monday-actions.js # Write operations (mutations)
-│           ├── ai-engine.js      # OpenRouter AI with action detection
-│           └── pdf-generator.js  # HTML report generator
+│   └── server/                        # Express Backend
+│       ├── index.js                   # Server entry
+│       ├── config/                    # Environment config
+│       ├── middleware/auth.js         # JWT auth + error handling
+│       ├── routes/                    # reporting, ai, actions, export, health
+│       └── services/                  # monday-api, ai-engine, monday-actions, pdf-generator
 │
-├── assets/                        # Logo & icons
-├── scripts/                       # Dev utilities
-├── tests/                         # Test suites
-├── .env                          # Environment variables (not committed)
-└── vite.config.js                # Vite build config
+├── tests/unit/                        # 64 unit tests (5 test files)
+├── assets/                            # PNG logos (192/512/1024)
+├── scripts/pre-deploy.js              # CI pipeline
+└── .claude/                           # AI assistant rules & skills
 ```
 
 ---
@@ -105,7 +107,7 @@ Swiftly/
 
 ### Prerequisites
 - Node.js 20+
-- monday.com account with API token
+- monday.com developer account
 - OpenRouter API key (for AI features)
 
 ### Installation
@@ -121,15 +123,17 @@ npm install
 Create a `.env` file:
 
 ```env
-MONDAY_API_TOKEN=your_monday_api_token
+# Required for production (JWT verification)
 MONDAY_SIGNING_SECRET=your_signing_secret
-MONDAY_CLIENT_ID=your_client_id
-MONDAY_CLIENT_SECRET=your_client_secret
-MONDAY_APP_ID=your_app_id
 
+# Optional — dev/standalone mode fallback
+MONDAY_API_TOKEN=your_monday_api_token
+
+# AI (developer pays — standard SaaS model)
 OPENROUTER_API_KEY=your_openrouter_key
 AI_MODEL=anthropic/claude-sonnet-4
 
+# Server
 PORT=8080
 NODE_ENV=development
 ```
@@ -137,40 +141,41 @@ NODE_ENV=development
 ### Running Locally
 
 ```bash
-# Start both frontend + backend
-npm run dev
-
-# Or separately
-npm run dev:server   # Express on :8080
-npm run dev:client   # Vite on :3000
+# Build and start
+npm run build
+npm start
+# Open http://localhost:8080
 ```
 
-### Building for Production
+### Testing
 
 ```bash
-npm run build        # Builds frontend
-npm start            # Serves everything from :8080
+npm test                    # Run all 64 unit tests
+npm run test:coverage       # With coverage report
+npm run predeploy           # Full pipeline: secret scan + tests + build + verify
 ```
 
 ---
 
 ## API Endpoints
 
+All endpoints (except `/api/health`) require `Authorization: Bearer <token>`.
+
 ### Data & Reports
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/health` | Health check |
-| GET | `/api/boards` | List all boards |
-| GET | `/api/boards/:id` | Get board details |
+| GET | `/api/boards` | List all boards (paginated, 200/page) |
+| GET | `/api/boards/:id` | Get board details with columns/groups |
 | GET | `/api/boards/:id/items` | Get board items with subitems |
 | POST | `/api/reports/generate` | Generate cross-board report with AI |
-| POST | `/api/reports/quick` | Quick single-board report |
 
 ### AI
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/ai/chat` | AI chat with action buttons |
-| POST | `/api/ai/insights` | Generate AI insights |
+| POST | `/api/ai/chat` | AI chat with full item context + action buttons |
+| POST | `/api/ai/insights` | Generate AI insights for boards |
+| DELETE | `/api/ai/chat/:sessionId` | Clear chat session |
 
 ### Actions (Write Operations)
 | Method | Endpoint | Description |
@@ -181,20 +186,37 @@ npm start            # Serves everything from :8080
 | POST | `/api/actions/bulk-update` | Bulk update items |
 | POST | `/api/actions/move-item` | Move item to group |
 | POST | `/api/actions/delete-item` | Delete an item |
-| GET | `/api/actions/users` | List all users |
+| POST | `/api/actions/archive-item` | Archive an item |
+| POST | `/api/actions/create-group` | Create a new group |
+| GET | `/api/actions/users` | List workspace users |
 
 ### Export
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/export/html` | HTML report (printable PDF) |
-| POST | `/api/export/text` | Plain text report |
+| POST | `/api/export/html` | HTML report (printable as PDF) |
+| POST | `/api/export/text` | Plain text report with AI analysis |
 | POST | `/api/export/json` | JSON data export |
+
+---
+
+## Authentication
+
+### For Marketplace Users (Production)
+1. User installs Swiftly from monday.com marketplace
+2. monday.com SDK provides a JWT session token
+3. Server verifies JWT using the app's signing secret
+4. Extracts `shortLivedToken` — used for API calls on behalf of that user
+5. Each user sees **only their own boards and data**
+
+### For Local Development
+- Set `MONDAY_API_TOKEN` in `.env`
+- Frontend sends `Bearer standalone` → server uses the env token as fallback
 
 ---
 
 ## AI Models (via OpenRouter)
 
-Configure `AI_MODEL` in `.env` to use any model:
+Configure `AI_MODEL` in `.env`:
 
 | Model | Quality | Speed | Cost |
 |-------|---------|-------|------|
@@ -213,36 +235,27 @@ Configure `AI_MODEL` in `.env` to use any model:
 2. **Build Command:** `npm install && npm run build`
 3. **Start Command:** `npm start`
 4. Add environment variables in Render dashboard
-5. Deploy → get permanent URL
+5. Push to `main` → auto-deploys
 
-### Monday Code
-
-1. Use `@mondaycom/apps-cli` to deploy
-2. `mapps code:push` uploads to monday.com's hosting
-3. SOC2, ISO 27001, GDPR, HIPAA compliant
-
----
-
-## monday.com App Setup
+### monday.com App Setup
 
 1. Go to [developer.monday.com](https://developer.monday.com/apps/manage)
 2. Create app → add **Board View** feature
-3. Set Custom URL to your deployed URL
-4. Install on your account
-5. Open any board → Add View → Select "Swiftly"
+3. Set Custom URL to your Render URL
+4. Set OAuth scopes: `boards:read`, `boards:write`, `users:read`
+5. Install on your account → open any board → Add View → "Swiftly"
 
 ---
 
-## Roadmap
+## Architecture Highlights
 
-- [ ] Time tracking with subitem support
-- [ ] Sprint management (burndown, velocity)
-- [ ] OKR / Goal tracking
-- [ ] Sidekick Skills integration
-- [ ] Scheduled report delivery
-- [ ] Team workload visualization
-- [ ] Industry template packs
-- [ ] monday.com marketplace submission
+- **Multi-tenant:** Each user's data is isolated via JWT-verified session tokens
+- **State preserved across tabs:** All 5 tabs stay mounted (CSS `display:none`), no data loss when switching
+- **Shared state:** React Context + useReducer with 5-minute TTL cache
+- **Rate limit resilient:** Exponential backoff on Monday.com API 429 responses (3 retries)
+- **30-second timeouts:** AbortController on all API calls
+- **Cache-busted:** Static assets served with `max-age=0` to prevent stale bundles
+- **AI fallback:** App works without AI — reports degrade to data-only mode
 
 ---
 
@@ -252,4 +265,4 @@ Proprietary — All rights reserved.
 
 ---
 
-Built with ⚡ by [Pandu Chinna](https://github.com/pandureddy0254)
+Built with speed by [Pandu Chinna](https://github.com/pandureddy0254)

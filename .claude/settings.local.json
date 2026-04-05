@@ -10,7 +10,17 @@
       "WebFetch",
       "Agent",
       "Bash",
-      "mcp__playwright__*"
+      "Skill",
+      "TaskCreate",
+      "TaskUpdate",
+      "TaskGet",
+      "TaskList",
+      "TaskOutput",
+      "TaskStop",
+      "NotebookEdit",
+      "mcp__playwright__*",
+      "mcp__figma__*",
+      "mcp__pencil__*"
     ]
   }
 }
