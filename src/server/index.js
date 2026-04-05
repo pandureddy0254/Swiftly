@@ -42,8 +42,11 @@ app.use('/api/actions', authenticateMonday(), actionsRoutes);
 
 // --- Static files (serve built frontend) ---
 const distPath = path.resolve(__dirname, '../../dist');
-app.use(express.static(distPath));
+
+// Static assets — no caching to prevent stale JS bundles
+app.use(express.static(distPath, { maxAge: 0, etag: false }));
 app.get('*', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
   res.sendFile(path.join(distPath, 'index.html'));
 });
 
