@@ -81,22 +81,22 @@ export async function exportHtml(token, boardIds, options = {}) {
   return response.text();
 }
 
-export async function exportText(token, boardIds) {
+export async function exportText(token, boardIds, options = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
 
   const response = await fetch(`${API_BASE}/export/text`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ boardIds }),
+    body: JSON.stringify({ boardIds, includeAi: true, ...options }),
   });
 
   if (!response.ok) throw new Error('Export failed');
   return response.text();
 }
 
-export const exportJson = (token, boardIds) =>
-  request('/export/json', { method: 'POST', token, body: { boardIds } });
+export const exportJson = (token, boardIds, options = {}) =>
+  request('/export/json', { method: 'POST', token, body: { boardIds, includeAi: true, ...options } });
 
 // --- Action APIs ---
 export const createItem = (token, boardId, itemName, columnValues, groupId) =>

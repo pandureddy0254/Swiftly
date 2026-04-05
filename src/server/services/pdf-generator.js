@@ -8,7 +8,12 @@
  * Generate HTML report content that can be rendered as PDF or displayed.
  */
 export function generateReportHtml(reportData, aiReport = null, options = {}) {
-  const { title = 'Project Status Report', generatedAt = new Date().toISOString() } = options;
+  const {
+    title = 'Project Status Report',
+    generatedAt = new Date().toISOString(),
+    insights = [],
+    crossBoardData = [],
+  } = options;
   const date = new Date(generatedAt).toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
@@ -16,10 +21,56 @@ export function generateReportHtml(reportData, aiReport = null, options = {}) {
     day: 'numeric',
   });
 
+  // Build per-board item detail sections
+  let itemDetailHtml = '';
+  if (crossBoardData.length > 0) {
+    itemDetailHtml = `<h2>Item Details by Board</h2>`;
+    for (const board of crossBoardData) {
+      itemDetailHtml += `<h3>${escapeHtml(board.boardName)} (${board.itemCount} items)</h3>`;
+      if (board.items.length === 0) {
+        itemDetailHtml += `<p style="color:#676879;font-size:13px;">No items found.</p>`;
+        continue;
+      }
+      itemDetailHtml += `<table><thead><tr>
+        <th>Item</th><th style="text-align:center">Status</th><th style="text-align:center">Group</th><th style="text-align:center">Subitems</th>
+      </tr></thead><tbody>`;
+      for (const item of board.items) {
+        const statusCol = item.column_values?.find((c) => c.type === 'status');
+        const statusText = statusCol?.text || '-';
+        const groupText = item.group?.title || '-';
+        const subitemCount = item.subitems?.length || 0;
+        itemDetailHtml += `<tr>
+          <td style="font-weight:500">${escapeHtml(item.name)}</td>
+          <td style="text-align:center">${escapeHtml(statusText)}</td>
+          <td style="text-align:center">${escapeHtml(groupText)}</td>
+          <td style="text-align:center">${subitemCount}</td>
+        </tr>`;
+      }
+      itemDetailHtml += `</tbody></table>`;
+    }
+  }
+
+  // Build insights section
+  let insightsHtml = '';
+  if (insights.length > 0) {
+    insightsHtml = `<h2>AI Insights</h2>`;
+    for (const insight of insights) {
+      const cls = insight.type === 'risk' ? 'insight-risk'
+        : insight.type === 'recommendation' ? 'insight-good'
+        : 'insight-info';
+      insightsHtml += `<div class="insight ${cls}">
+        <div class="insight-title">${escapeHtml(insight.title)}</div>
+        <div class="insight-desc">${escapeHtml(insight.description)}</div>
+        ${insight.board ? `<div style="font-size:11px;color:#999;margin-top:4px;">Board: ${escapeHtml(insight.board)}</div>` : ''}
+      </div>`;
+    }
+  }
+
   return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
+<title>${escapeHtml(title)} - Swiftly</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Segoe UI', Roboto, sans-serif; color: #323338; line-height: 1.6; padding: 40px; max-width: 900px; margin: 0 auto; }
@@ -69,6 +120,13 @@ export function generateReportHtml(reportData, aiReport = null, options = {}) {
   .ai-report { font-size: 14px; line-height: 1.7; white-space: pre-wrap; background: #fafbfc; padding: 20px; border-radius: 8px; border: 1px solid #e6e9ef; }
 
   .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e6e9ef; font-size: 11px; color: #676879; text-align: center; }
+
+  @media print {
+    body { padding: 20px; }
+    .kpi-card { break-inside: avoid; }
+    table { break-inside: avoid; }
+    h2 { break-after: avoid; }
+  }
 </style>
 </head>
 <body>
@@ -139,6 +197,7 @@ export function generateReportHtml(reportData, aiReport = null, options = {}) {
 
 <!-- Status Distribution -->
 <h2>Status Distribution</h2>
+${Object.keys(reportData.statusBreakdown).length > 0 ? `
 <table>
   <thead>
     <tr>
@@ -149,7 +208,7 @@ export function generateReportHtml(reportData, aiReport = null, options = {}) {
   </thead>
   <tbody>
     ${Object.entries(reportData.statusBreakdown).map(([status, count]) => {
-      const pct = Math.round((count / reportData.totalItems) * 100);
+      const pct = reportData.totalItems > 0 ? Math.round((count / reportData.totalItems) * 100) : 0;
       const statusClass = status.toLowerCase().includes('done') || status.toLowerCase().includes('complete') ? 'status-done'
         : status.toLowerCase().includes('progress') || status.toLowerCase().includes('working') ? 'status-progress'
         : status.toLowerCase().includes('stuck') || status.toLowerCase().includes('block') ? 'status-stuck'
@@ -169,12 +228,17 @@ export function generateReportHtml(reportData, aiReport = null, options = {}) {
     }).join('\n')}
   </tbody>
 </table>
+` : '<p style="color:#676879;font-size:13px;">No status columns configured on these boards.</p>'}
+
+${insightsHtml}
 
 ${aiReport ? `
 <!-- AI Report -->
 <h2>AI Analysis</h2>
 <div class="ai-report">${escapeHtml(aiReport.report || aiReport)}</div>
 ` : ''}
+
+${itemDetailHtml}
 
 <div class="footer">
   Generated by Swiftly &mdash; AI-Powered Command Center for monday.com &bull; ${date}
@@ -185,16 +249,20 @@ ${aiReport ? `
 }
 
 /**
- * Generate a plain-text version of the report (for email body).
+ * Generate a full plain-text version of the report.
+ * Includes AI analysis, insights, all board breakdowns, and per-board item lists.
  */
-export function generateReportText(reportData) {
+export function generateReportText(reportData, options = {}) {
+  const { aiReport = null, insights = [], crossBoardData = [] } = options;
+
   const lines = [
     'PROJECT STATUS REPORT',
-    '='.repeat(50),
-    `Generated: ${new Date().toLocaleDateString()}`,
+    '='.repeat(60),
+    `Generated: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`,
+    `Generated by: Swiftly - AI-Powered Command Center`,
     '',
     'SUMMARY',
-    '-'.repeat(30),
+    '-'.repeat(40),
     `Boards: ${reportData.totalBoards}`,
     `Total Items: ${reportData.totalItems}`,
     `Completed: ${reportData.completedItems}`,
@@ -202,19 +270,84 @@ export function generateReportText(reportData) {
     `Progress: ${reportData.overallProgress}%`,
     '',
     'BOARD PROGRESS',
-    '-'.repeat(30),
+    '-'.repeat(40),
   ];
 
   for (const board of reportData.boards) {
-    lines.push(`  ${board.name}: ${board.progress}% (${board.completedItems}/${board.totalItems})`);
+    lines.push(`  ${board.name}`);
+    lines.push(`    Progress: ${board.progress}% (${board.completedItems}/${board.totalItems} items, ${board.subitems} subitems)`);
+    if (board.groups && Object.keys(board.groups).length > 0) {
+      lines.push(`    Groups: ${Object.entries(board.groups).map(([g, c]) => `${g} (${c})`).join(', ')}`);
+    }
   }
 
-  lines.push('', 'STATUS BREAKDOWN', '-'.repeat(30));
-  for (const [status, count] of Object.entries(reportData.statusBreakdown)) {
-    lines.push(`  ${status}: ${count}`);
+  lines.push('', 'STATUS BREAKDOWN', '-'.repeat(40));
+  if (Object.keys(reportData.statusBreakdown).length > 0) {
+    for (const [status, count] of Object.entries(reportData.statusBreakdown)) {
+      const pct = reportData.totalItems > 0 ? Math.round((count / reportData.totalItems) * 100) : 0;
+      lines.push(`  ${status}: ${count} items (${pct}%)`);
+    }
+  } else {
+    lines.push('  No status columns configured on these boards.');
   }
 
-  lines.push('', '---', 'Generated by Swiftly');
+  if (Object.keys(reportData.groupBreakdown).length > 0) {
+    lines.push('', 'GROUP BREAKDOWN', '-'.repeat(40));
+    for (const [group, count] of Object.entries(reportData.groupBreakdown)) {
+      lines.push(`  ${group}: ${count} items`);
+    }
+  }
+
+  // Per-board item lists
+  if (crossBoardData.length > 0) {
+    lines.push('', 'ITEMS BY BOARD', '-'.repeat(40));
+    for (const board of crossBoardData) {
+      lines.push('');
+      lines.push(`  Board: ${board.boardName} (${board.itemCount} items, ${board.completedCount} completed)`);
+      lines.push(`  ${'~'.repeat(50)}`);
+      if (board.items.length === 0) {
+        lines.push('    No items found.');
+        continue;
+      }
+      for (const item of board.items) {
+        const statusCol = item.column_values?.find((c) => c.type === 'status');
+        const statusText = statusCol?.text || 'No Status';
+        const groupText = item.group?.title || 'Default';
+        const subitemCount = item.subitems?.length || 0;
+        lines.push(`    - ${item.name} [${statusText}] (Group: ${groupText}${subitemCount > 0 ? `, ${subitemCount} subitems` : ''})`);
+        if (item.subitems && item.subitems.length > 0) {
+          for (const sub of item.subitems) {
+            const subStatus = sub.column_values?.find((c) => c.type === 'status')?.text || '';
+            lines.push(`        - ${sub.name}${subStatus ? ` [${subStatus}]` : ''}`);
+          }
+        }
+      }
+    }
+  }
+
+  // AI Insights
+  if (insights.length > 0) {
+    lines.push('', '', 'AI INSIGHTS', '='.repeat(60));
+    for (const insight of insights) {
+      const typeTag = insight.type === 'risk' ? '[RISK]' : insight.type === 'recommendation' ? '[REC]' : '[INFO]';
+      const severity = insight.severity ? ` (${insight.severity})` : '';
+      lines.push('');
+      lines.push(`  ${typeTag}${severity} ${insight.title}`);
+      lines.push(`  ${insight.description}`);
+      if (insight.board) lines.push(`  Board: ${insight.board}`);
+    }
+  }
+
+  // AI Report
+  if (aiReport) {
+    const reportText = aiReport.report || (typeof aiReport === 'string' ? aiReport : '');
+    if (reportText) {
+      lines.push('', '', 'AI ANALYSIS', '='.repeat(60));
+      lines.push(reportText);
+    }
+  }
+
+  lines.push('', '', '---', 'Generated by Swiftly - AI-Powered Command Center for monday.com');
   return lines.join('\n');
 }
 

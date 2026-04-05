@@ -69,11 +69,28 @@ router.post('/reports/generate', async (req, res, next) => {
     // Aggregate into report structure
     const aggregated = mondayApi.aggregateBoardData(crossBoardData);
 
-    // Generate AI-enhanced report
-    const aiReport = await aiEngine.generateStatusReport(aggregated, options);
+    // Generate AI-enhanced report and insights in parallel
+    const [aiReport, rawInsights] = await Promise.all([
+      aiEngine.generateStatusReport(aggregated, options),
+      aiEngine.generateInsights(aggregated),
+    ]);
 
-    // Generate insights
-    const insights = await aiEngine.generateInsights(aggregated);
+    // Enrich insights with boardId by matching board name
+    const boardNameToId = {};
+    for (const board of aggregated.boards) {
+      boardNameToId[board.name] = board.id;
+    }
+
+    const insights = (rawInsights || []).map((insight) => {
+      const enriched = { ...insight };
+      if (insight.board && boardNameToId[insight.board]) {
+        enriched.boardId = String(boardNameToId[insight.board]);
+      } else if (aggregated.boards.length === 1) {
+        // If only one board, always link to it
+        enriched.boardId = String(aggregated.boards[0].id);
+      }
+      return enriched;
+    });
 
     res.json({
       report: aiReport,

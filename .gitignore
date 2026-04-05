@@ -12,5 +12,8 @@ Thumbs.db
 coverage/
 test-results/
 playwright-report/
+cloudflared.exe
+*.PNG
+*.exe
 
 .mappsrc

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, ResponsiveContainer, Legend } from 'recharts';
 import * as api from '@core/api/swiftly-client';
 
 const CHART_COLORS = ['#0073ea', '#00ca72', '#fdab3d', '#e2445c', '#579bfc', '#a25ddc', '#037f4c', '#ff5ac4'];
@@ -30,8 +30,52 @@ function InsightActionButton({ label, icon, onClick, loading, done }) {
   );
 }
 
+/**
+ * Modal to display items from a board inline.
+ */
+function ItemsModal({ items, boardName, onClose }) {
+  return (
+    <div className="swiftly-modal-overlay" onClick={onClose}>
+      <div className="swiftly-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="swiftly-modal-header">
+          <span className="swiftly-card-title">Items: {boardName}</span>
+          <button onClick={onClose} className="swiftly-modal-close">&times;</button>
+        </div>
+        <div className="swiftly-modal-body">
+          {items.length === 0 ? (
+            <p style={{ color: 'var(--swiftly-text-secondary)', textAlign: 'center', padding: 20 }}>No items found.</p>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid var(--swiftly-border)' }}>
+                  <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--swiftly-text-secondary)', fontWeight: 500 }}>Item</th>
+                  <th style={{ textAlign: 'center', padding: '8px 12px', color: 'var(--swiftly-text-secondary)', fontWeight: 500 }}>Status</th>
+                  <th style={{ textAlign: 'center', padding: '8px 12px', color: 'var(--swiftly-text-secondary)', fontWeight: 500 }}>Group</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => {
+                  const statusCol = item.column_values?.find((c) => c.type === 'status');
+                  return (
+                    <tr key={item.id} style={{ borderBottom: '1px solid var(--swiftly-border)' }}>
+                      <td style={{ padding: '8px 12px', fontWeight: 500 }}>{item.name}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'center' }}>{statusCol?.text || '-'}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'center' }}>{item.group?.title || '-'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function InsightActions({ insight, token, onToast }) {
   const [actionStates, setActionStates] = useState({});
+  const [viewItems, setViewItems] = useState(null);
 
   const setActionState = (key, state) => {
     setActionStates((prev) => ({ ...prev, [key]: state }));
@@ -41,10 +85,14 @@ function InsightActions({ insight, token, onToast }) {
     setActionState('view', 'loading');
     try {
       if (insight.boardId) {
-        await api.getBoardItems(token, insight.boardId);
+        const result = await api.getBoardItems(token, insight.boardId);
+        setViewItems(result.items || []);
+        setActionState('view', 'done');
+        onToast?.(`Loaded ${(result.items || []).length} items from board`, 'success');
+      } else {
+        onToast?.('This insight is not linked to a specific board. Try generating a new report to link insights to boards.', 'error');
+        setActionState('view', null);
       }
-      setActionState('view', 'done');
-      onToast?.('Items loaded successfully', 'success');
     } catch (err) {
       setActionState('view', null);
       onToast?.('Failed to load items: ' + err.message, 'error');
@@ -54,11 +102,15 @@ function InsightActions({ insight, token, onToast }) {
   const handleCreateActionPlan = async () => {
     setActionState('plan', 'loading');
     try {
-      if (insight.boardId) {
-        await api.createItem(token, insight.boardId, `Action Plan: ${insight.title}`, {}, null);
+      if (!insight.boardId) {
+        onToast?.('Cannot create action plan: this insight is not linked to a specific board. The AI generated this as a general observation.', 'error');
+        setActionState('plan', null);
+        return;
       }
+      const itemName = `[Action Plan] ${insight.title}`;
+      const result = await api.createItem(token, insight.boardId, itemName, {}, null);
       setActionState('plan', 'done');
-      onToast?.('Action plan item created', 'success');
+      onToast?.(`Action plan item created on board (ID: ${result.id})`, 'success');
     } catch (err) {
       setActionState('plan', null);
       onToast?.('Failed to create action plan: ' + err.message, 'error');
@@ -67,10 +119,17 @@ function InsightActions({ insight, token, onToast }) {
 
   const handleSendReminder = async () => {
     setActionState('reminder', 'loading');
-    // Simulate reminder action via bulk update
     try {
+      if (!insight.boardId) {
+        onToast?.('Cannot send reminder: this insight is not linked to a specific board. Reminders require a board context to notify the right people.', 'error');
+        setActionState('reminder', null);
+        return;
+      }
+      // Create a notification item on the board as a reminder
+      const itemName = `[Reminder] ${insight.title} - Action needed`;
+      const result = await api.createItem(token, insight.boardId, itemName, {}, null);
       setActionState('reminder', 'done');
-      onToast?.('Reminder queued for team members', 'success');
+      onToast?.(`Reminder item created on board (ID: ${result.id}). Board subscribers will be notified.`, 'success');
     } catch (err) {
       setActionState('reminder', null);
       onToast?.('Failed to send reminder: ' + err.message, 'error');
@@ -80,78 +139,124 @@ function InsightActions({ insight, token, onToast }) {
   const handleUpdatePriorities = async () => {
     setActionState('priorities', 'loading');
     try {
+      if (!insight.boardId) {
+        onToast?.('Cannot update priorities: this insight is not linked to a specific board. Generate a new report to get board-specific recommendations.', 'error');
+        setActionState('priorities', null);
+        return;
+      }
+      // Create a priority review task on the board
+      const itemName = `[Priority Review] ${insight.title}`;
+      const result = await api.createItem(token, insight.boardId, itemName, {}, null);
       setActionState('priorities', 'done');
-      onToast?.('Priority update initiated', 'success');
+      onToast?.(`Priority review item created on board (ID: ${result.id}). Review and reassign priorities as needed.`, 'success');
     } catch (err) {
       setActionState('priorities', null);
       onToast?.('Failed to update priorities: ' + err.message, 'error');
     }
   };
 
-  if (insight.type === 'risk') {
-    return (
-      <div className="swiftly-action-buttons" style={{ marginTop: 10, paddingTop: 10 }}>
-        <InsightActionButton
-          label="View Items"
-          icon="\u{1F50D}"
-          onClick={handleViewItems}
-          loading={actionStates.view === 'loading'}
-          done={actionStates.view === 'done'}
-        />
-        <InsightActionButton
-          label="Create Action Plan"
-          icon="\u{1F4CB}"
-          onClick={handleCreateActionPlan}
-          loading={actionStates.plan === 'loading'}
-          done={actionStates.plan === 'done'}
-        />
-      </div>
-    );
-  }
+  const actionsContent = (() => {
+    if (insight.type === 'risk') {
+      return (
+        <div className="swiftly-action-buttons" style={{ marginTop: 10, paddingTop: 10 }}>
+          <InsightActionButton
+            label="View Items"
+            icon={"\u{1F50D}"}
+            onClick={handleViewItems}
+            loading={actionStates.view === 'loading'}
+            done={actionStates.view === 'done'}
+          />
+          <InsightActionButton
+            label="Create Action Plan"
+            icon={"\u{1F4CB}"}
+            onClick={handleCreateActionPlan}
+            loading={actionStates.plan === 'loading'}
+            done={actionStates.plan === 'done'}
+          />
+        </div>
+      );
+    }
 
-  if (insight.type === 'insight') {
-    return (
-      <div className="swiftly-action-buttons" style={{ marginTop: 10, paddingTop: 10 }}>
-        <InsightActionButton
-          label="Send Reminder"
-          icon="\u{1F514}"
-          onClick={handleSendReminder}
-          loading={actionStates.reminder === 'loading'}
-          done={actionStates.reminder === 'done'}
-        />
-        <InsightActionButton
-          label="Update Priorities"
-          icon="\u{1F4CA}"
-          onClick={handleUpdatePriorities}
-          loading={actionStates.priorities === 'loading'}
-          done={actionStates.priorities === 'done'}
-        />
-      </div>
-    );
-  }
+    if (insight.type === 'insight') {
+      return (
+        <div className="swiftly-action-buttons" style={{ marginTop: 10, paddingTop: 10 }}>
+          <InsightActionButton
+            label="Send Reminder"
+            icon={"\u{1F514}"}
+            onClick={handleSendReminder}
+            loading={actionStates.reminder === 'loading'}
+            done={actionStates.reminder === 'done'}
+          />
+          <InsightActionButton
+            label="Update Priorities"
+            icon={"\u{1F4CA}"}
+            onClick={handleUpdatePriorities}
+            loading={actionStates.priorities === 'loading'}
+            done={actionStates.priorities === 'done'}
+          />
+        </div>
+      );
+    }
 
-  if (insight.type === 'recommendation') {
-    return (
-      <div className="swiftly-action-buttons" style={{ marginTop: 10, paddingTop: 10 }}>
-        <InsightActionButton
-          label="View Items"
-          icon="\u{1F50D}"
-          onClick={handleViewItems}
-          loading={actionStates.view === 'loading'}
-          done={actionStates.view === 'done'}
-        />
-        <InsightActionButton
-          label="Send Reminder"
-          icon="\u{1F514}"
-          onClick={handleSendReminder}
-          loading={actionStates.reminder === 'loading'}
-          done={actionStates.reminder === 'done'}
-        />
-      </div>
-    );
-  }
+    if (insight.type === 'recommendation') {
+      return (
+        <div className="swiftly-action-buttons" style={{ marginTop: 10, paddingTop: 10 }}>
+          <InsightActionButton
+            label="View Items"
+            icon={"\u{1F50D}"}
+            onClick={handleViewItems}
+            loading={actionStates.view === 'loading'}
+            done={actionStates.view === 'done'}
+          />
+          <InsightActionButton
+            label="Send Reminder"
+            icon={"\u{1F514}"}
+            onClick={handleSendReminder}
+            loading={actionStates.reminder === 'loading'}
+            done={actionStates.reminder === 'done'}
+          />
+        </div>
+      );
+    }
 
-  return null;
+    return null;
+  })();
+
+  return (
+    <>
+      {actionsContent}
+      {viewItems && (
+        <ItemsModal
+          items={viewItems}
+          boardName={insight.board || 'Board'}
+          onClose={() => setViewItems(null)}
+        />
+      )}
+    </>
+  );
+}
+
+/**
+ * Empty state placeholder for charts when data is missing.
+ */
+function ChartEmptyState({ message }) {
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: 280,
+      color: 'var(--swiftly-text-secondary)',
+      fontSize: 14,
+      textAlign: 'center',
+      padding: 20,
+    }}>
+      <div>
+        <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.4 }}>{"\u{1F4CA}"}</div>
+        <p>{message}</p>
+      </div>
+    </div>
+  );
 }
 
 function ReportingView({ token, currentBoardId, mode = 'dashboard' }) {
@@ -178,10 +283,12 @@ function ReportingView({ token, currentBoardId, mode = 'dashboard' }) {
         title: 'Project Status Report',
         includeAi: true,
       });
-      const win = window.open('', '_blank');
-      win.document.write(html);
-      win.document.close();
-      setTimeout(() => win.print(), 500);
+      // Open in a new tab instantly, user can then print to PDF
+      const blob = new Blob([html], { type: 'text/html; charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      // Clean up after a delay to allow the tab to load
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
     } catch (err) {
       setError('Export failed: ' + err.message);
     } finally {
@@ -278,6 +385,16 @@ function ReportingView({ token, currentBoardId, mode = 'dashboard' }) {
     }
   }, [token, selectedBoardIds]);
 
+  // Prepare chart data safely
+  const barChartData = reportData?.boards?.map((b) => ({
+    name: b.name.length > 20 ? b.name.slice(0, 20) + '...' : b.name,
+    progress: b.progress,
+    items: b.totalItems,
+  })) || [];
+
+  const statusEntries = reportData ? Object.entries(reportData.statusBreakdown) : [];
+  const pieChartData = statusEntries.map(([name, value]) => ({ name, value }));
+
   if (loadingBoards) {
     return (
       <div className="swiftly-loading">
@@ -313,16 +430,7 @@ function ReportingView({ token, currentBoardId, mode = 'dashboard' }) {
             <button
               key={board.id}
               onClick={() => toggleBoard(board.id)}
-              style={{
-                padding: '6px 14px',
-                borderRadius: 20,
-                border: `1px solid ${selectedBoardIds.includes(board.id) ? 'var(--swiftly-primary)' : 'var(--swiftly-border)'}`,
-                background: selectedBoardIds.includes(board.id) ? 'var(--swiftly-primary)' : 'white',
-                color: selectedBoardIds.includes(board.id) ? 'white' : 'var(--swiftly-text)',
-                fontSize: 13,
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-              }}
+              className={`swiftly-board-chip ${selectedBoardIds.includes(board.id) ? 'swiftly-board-chip--selected' : ''}`}
             >
               {board.name}
             </button>
@@ -332,16 +440,7 @@ function ReportingView({ token, currentBoardId, mode = 'dashboard' }) {
           <button
             onClick={generateReport}
             disabled={selectedBoardIds.length === 0 || loading}
-            style={{
-              padding: '10px 24px',
-              borderRadius: 'var(--swiftly-radius)',
-              border: 'none',
-              background: selectedBoardIds.length > 0 ? 'var(--swiftly-primary)' : 'var(--swiftly-border)',
-              color: 'white',
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: selectedBoardIds.length > 0 ? 'pointer' : 'not-allowed',
-            }}
+            className="swiftly-btn-primary"
           >
             {loading ? 'Generating Report...' : 'Generate Report'}
           </button>
@@ -358,50 +457,28 @@ function ReportingView({ token, currentBoardId, mode = 'dashboard' }) {
       {reportData && (
         <>
           {/* Export Bar */}
-          <div className="swiftly-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px' }}>
+          <div className="swiftly-card swiftly-export-bar">
             <span style={{ fontSize: 14, fontWeight: 600 }}>
               Report generated at {new Date().toLocaleTimeString()}
             </span>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={handleExportPdf}
-                disabled={exporting}
-                style={{
-                  padding: '6px 16px', borderRadius: 6, border: '1px solid var(--swiftly-border)',
-                  background: 'white', color: 'var(--swiftly-text)', fontSize: 13, cursor: 'pointer',
-                  fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6,
-                }}
-              >
+              <button onClick={handleExportPdf} disabled={exporting} className="swiftly-export-btn">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <path d="M14 3v4a1 1 0 001 1h4"/><path d="M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z"/>
                   <path d="M12 11v6"/><path d="M9 14l3 3 3-3"/>
                 </svg>
                 PDF
               </button>
-              <button
-                onClick={handleExportText}
-                disabled={exporting}
-                style={{
-                  padding: '6px 16px', borderRadius: 6, border: '1px solid var(--swiftly-border)',
-                  background: 'white', color: 'var(--swiftly-text)', fontSize: 13, cursor: 'pointer', fontWeight: 500,
-                }}
-              >
+              <button onClick={handleExportText} disabled={exporting} className="swiftly-export-btn">
                 TXT
               </button>
-              <button
-                onClick={handleExportJson}
-                disabled={exporting}
-                style={{
-                  padding: '6px 16px', borderRadius: 6, border: '1px solid var(--swiftly-border)',
-                  background: 'white', color: 'var(--swiftly-text)', fontSize: 13, cursor: 'pointer', fontWeight: 500,
-                }}
-              >
+              <button onClick={handleExportJson} disabled={exporting} className="swiftly-export-btn">
                 JSON
               </button>
             </div>
           </div>
 
-          {/* KPI Cards — shown in dashboard mode or always */}
+          {/* KPI Cards -- shown in dashboard mode or always */}
           {(mode === 'dashboard' || !mode) && (
             <div className="swiftly-grid swiftly-grid-4">
               <div className="swiftly-card swiftly-stat">
@@ -429,7 +506,7 @@ function ReportingView({ token, currentBoardId, mode = 'dashboard' }) {
             </div>
           )}
 
-          {/* Charts Row — shown in dashboard mode */}
+          {/* Charts Row -- shown in dashboard mode */}
           {(mode === 'dashboard' || !mode) && (
             <div className="swiftly-grid swiftly-grid-2">
               {/* Board Progress Bar Chart */}
@@ -437,19 +514,22 @@ function ReportingView({ token, currentBoardId, mode = 'dashboard' }) {
                 <div className="swiftly-card-header">
                   <span className="swiftly-card-title">Board Progress</span>
                 </div>
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={reportData.boards.map((b) => ({
-                    name: b.name.length > 20 ? b.name.slice(0, 20) + '...' : b.name,
-                    progress: b.progress,
-                    items: b.totalItems,
-                  }))}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--swiftly-border)" />
-                    <XAxis dataKey="name" fontSize={12} />
-                    <YAxis domain={[0, 100]} fontSize={12} />
-                    <Tooltip />
-                    <Bar dataKey="progress" fill="var(--swiftly-primary)" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {barChartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={barChartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--swiftly-border)" />
+                      <XAxis dataKey="name" fontSize={12} tick={{ fill: '#676879' }} />
+                      <YAxis domain={[0, 100]} fontSize={12} tick={{ fill: '#676879' }} tickFormatter={(v) => `${v}%`} />
+                      <Tooltip
+                        formatter={(value, name) => name === 'progress' ? [`${value}%`, 'Progress'] : [value, name]}
+                        contentStyle={{ borderRadius: 8, border: '1px solid #e6e9ef', fontSize: 13 }}
+                      />
+                      <Bar dataKey="progress" fill="#0073ea" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <ChartEmptyState message="No board data available. Select boards and generate a report to see progress." />
+                )}
               </div>
 
               {/* Status Pie Chart */}
@@ -457,25 +537,30 @@ function ReportingView({ token, currentBoardId, mode = 'dashboard' }) {
                 <div className="swiftly-card-header">
                   <span className="swiftly-card-title">Status Distribution</span>
                 </div>
-                <ResponsiveContainer width="100%" height={280}>
-                  <PieChart>
-                    <Pie
-                      data={Object.entries(reportData.statusBreakdown).map(([name, value]) => ({ name, value }))}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={100}
-                      dataKey="value"
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      labelLine={false}
-                    >
-                      {Object.keys(reportData.statusBreakdown).map((_, i) => (
-                        <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
+                {pieChartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <PieChart>
+                      <Pie
+                        data={pieChartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={90}
+                        dataKey="value"
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        labelLine={true}
+                      >
+                        {pieChartData.map((_, i) => (
+                          <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e6e9ef', fontSize: 13 }} />
+                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <ChartEmptyState message="No status columns found on the selected boards. Add status columns to your boards to see distribution." />
+                )}
               </div>
             </div>
           )}
@@ -552,7 +637,7 @@ function ReportingView({ token, currentBoardId, mode = 'dashboard' }) {
             </div>
           )}
 
-          {/* AI Report — shown in reports mode or always */}
+          {/* AI Report -- shown in reports mode or always */}
           {aiReport && (
             <div className="swiftly-card">
               <div className="swiftly-card-header">
@@ -562,7 +647,7 @@ function ReportingView({ token, currentBoardId, mode = 'dashboard' }) {
                 </span>
               </div>
               <div
-                style={{ fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}
+                className="swiftly-ai-report-content"
                 dangerouslySetInnerHTML={{
                   __html: aiReport.report
                     .replace(/^### (.*$)/gm, '<h4 style="margin-top:16px;margin-bottom:8px">$1</h4>')
@@ -580,6 +665,13 @@ function ReportingView({ token, currentBoardId, mode = 'dashboard' }) {
       {/* Empty State */}
       {!reportData && !loading && (
         <div className="swiftly-empty">
+          <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.5 }}>
+            <svg width="48" height="48" viewBox="0 0 28 28" fill="none">
+              <rect width="28" height="28" rx="6" fill="#0073ea" />
+              <path d="M8 18L13 8L18 14L22 10" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="22" cy="10" r="2" fill="white" />
+            </svg>
+          </div>
           <h3>{mode === 'reports' ? 'Generate a detailed report' : 'Select boards and generate a report'}</h3>
           <p>Choose one or more boards above, then click "Generate Report" to see cross-board analytics with AI insights.</p>
         </div>

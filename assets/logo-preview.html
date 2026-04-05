@@ -1,20 +1,25 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Swiftly Logo Preview</title>
+<title>Swiftly Logo Preview &amp; PNG Export</title>
 <style>
   body { margin: 40px; font-family: system-ui; background: #f0f0f0; display: flex; gap: 40px; flex-wrap: wrap; align-items: flex-start; }
   .preview { text-align: center; }
   .preview p { margin-top: 8px; font-size: 13px; color: #666; }
   .bg-dark { background: #1a1a2e; padding: 20px; border-radius: 12px; }
   .bg-light { background: #ffffff; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+  .export-section { width: 100%; margin-top: 40px; padding-top: 20px; border-top: 2px solid #ddd; }
+  .export-section h2 { margin-bottom: 16px; }
+  .export-btn { padding: 10px 24px; border-radius: 8px; border: none; background: #0073EA; color: white; font-size: 14px; font-weight: 600; cursor: pointer; margin-right: 8px; }
+  .export-btn:hover { background: #0060c2; }
+  canvas { border: 1px dashed #ccc; border-radius: 12px; }
 </style>
 </head>
 <body>
 
 <div class="preview">
   <div class="bg-light">
-    <svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg id="logo-svg" width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
       <rect width="192" height="192" rx="40" fill="#0073EA"/>
       <rect width="192" height="192" rx="40" fill="url(#g1)" opacity="0.3"/>
       <path d="M108 36L68 96H92L78 156L138 88H110L124 36H108Z" fill="white" opacity="0.95"/>
@@ -75,6 +80,59 @@
   </div>
   <p>Marketplace listing preview</p>
 </div>
+
+<!-- PNG Export Section -->
+<div class="export-section">
+  <h2>Export as PNG</h2>
+  <p style="margin-bottom: 16px; color: #666;">Click a button below to render the SVG logo to a canvas and download it as a PNG file.</p>
+  <button class="export-btn" onclick="exportPng(192)">Download 192x192 PNG</button>
+  <button class="export-btn" onclick="exportPng(512)">Download 512x512 PNG</button>
+  <button class="export-btn" onclick="exportPng(1024)">Download 1024x1024 PNG</button>
+  <div style="margin-top: 20px;">
+    <canvas id="export-canvas" width="192" height="192" style="display:none;"></canvas>
+    <p id="export-status" style="color: #0073EA; font-weight: 500; margin-top: 8px;"></p>
+  </div>
+</div>
+
+<script>
+function exportPng(size) {
+  const svgEl = document.getElementById('logo-svg');
+  const svgData = new XMLSerializer().serializeToString(svgEl);
+  const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(svgBlob);
+
+  const canvas = document.getElementById('export-canvas');
+  canvas.width = size;
+  canvas.height = size;
+  canvas.style.display = 'block';
+
+  const ctx = canvas.getContext('2d');
+  const img = new Image();
+
+  img.onload = function () {
+    ctx.clearRect(0, 0, size, size);
+    ctx.drawImage(img, 0, 0, size, size);
+    URL.revokeObjectURL(url);
+
+    // Trigger download
+    const pngUrl = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = pngUrl;
+    a.download = 'swiftly-logo-' + size + 'x' + size + '.png';
+    a.click();
+
+    document.getElementById('export-status').textContent =
+      'Exported ' + size + 'x' + size + ' PNG successfully!';
+  };
+
+  img.onerror = function () {
+    document.getElementById('export-status').textContent =
+      'Error rendering SVG. Try opening this file in Chrome or Firefox.';
+  };
+
+  img.src = url;
+}
+</script>
 
 </body>
 </html>

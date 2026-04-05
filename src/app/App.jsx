@@ -70,16 +70,18 @@ function App() {
         </button>
       </div>
 
-      {/* Feature Views */}
-      {activeTab === 'reporting' && (
-        <ReportingView token={token} currentBoardId={boardId} mode="dashboard" />
-      )}
-      {activeTab === 'ai-chat' && (
-        <AiChatView token={token} currentBoardId={boardId} />
-      )}
-      {activeTab === 'reports' && (
-        <ReportingView token={token} currentBoardId={boardId} mode="reports" />
-      )}
+      {/* Feature Views — each wrapped for smooth transition */}
+      <div key={activeTab} style={{ animation: 'fadeIn 0.25s ease' }}>
+        {activeTab === 'reporting' && (
+          <ReportingView token={token} currentBoardId={boardId} mode="dashboard" />
+        )}
+        {activeTab === 'ai-chat' && (
+          <AiChatView token={token} currentBoardId={boardId} />
+        )}
+        {activeTab === 'reports' && (
+          <ReportingView token={token} currentBoardId={boardId} mode="reports" />
+        )}
+      </div>
     </div>
   );
 }
