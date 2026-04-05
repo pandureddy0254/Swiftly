@@ -13,7 +13,10 @@ coverage/
 test-results/
 playwright-report/
 cloudflared.exe
-*.PNG
 *.exe
+# Ignore screenshots but keep logo PNGs
+Capture.PNG
+swifly.PNG
+swiftlyerror.PNG
 
 .mappsrc
