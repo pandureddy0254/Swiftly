@@ -25,6 +25,7 @@ function DashboardView() {
   const {
     token,
     boards,
+    boardsLoaded,
     selectedBoardIds,
     setSelectedBoardIds,
     toggleBoard,
@@ -198,11 +199,20 @@ function DashboardView() {
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
-  if (boards.length === 0 && !error) {
+  if (!boardsLoaded && boards.length === 0 && !error) {
     return (
       <div className="swiftly-loading">
         <div className="swiftly-spinner" />
         Loading boards...
+      </div>
+    );
+  }
+
+  if (boardsLoaded && boards.length === 0 && !error) {
+    return (
+      <div className="swiftly-empty">
+        <h3>No boards found</h3>
+        <p>Create a board in Monday.com to get started.</p>
       </div>
     );
   }

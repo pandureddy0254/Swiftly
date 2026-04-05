@@ -18,7 +18,9 @@ validateConfig();
 const app = express();
 
 // --- Middleware ---
-app.use(cors());
+app.use(cors({
+  origin: config.isDev ? true : /\.monday\.com$/,
+}));
 app.use(express.json({ limit: '10mb' }));
 
 // Request logging in dev
@@ -33,10 +35,10 @@ if (config.isDev) {
 
 // --- API Routes ---
 app.use('/api/health', healthRoutes);
-app.use('/api', authenticateMonday, reportingRoutes);
-app.use('/api/ai', authenticateMonday, aiRoutes);
-app.use('/api/export', authenticateMonday, exportRoutes);
-app.use('/api/actions', authenticateMonday, actionsRoutes);
+app.use('/api', authenticateMonday(), reportingRoutes);
+app.use('/api/ai', authenticateMonday(), aiRoutes);
+app.use('/api/export', authenticateMonday(), exportRoutes);
+app.use('/api/actions', authenticateMonday(), actionsRoutes);
 
 // --- Static files (serve built frontend) ---
 const distPath = path.resolve(__dirname, '../../dist');

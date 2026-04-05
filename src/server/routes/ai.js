@@ -6,6 +6,7 @@ const router = Router();
 
 const conversations = new Map();
 const CONVERSATION_TTL = 30 * 60 * 1000;
+const MAX_CONVERSATIONS = 1000;
 
 /**
  * POST /api/ai/chat
@@ -34,7 +35,8 @@ router.post('/chat', async (req, res, next) => {
 
     // Get or create conversation history
     const convId = sessionId || `conv_${Date.now()}`;
-    let history = conversations.get(convId) || [];
+    const entry = conversations.get(convId);
+    let history = entry ? entry.history : [];
 
     // Send BOTH rich item data AND aggregated summary to AI
     const result = await aiEngine.chatWithBoardData(question, {
@@ -49,7 +51,7 @@ router.post('/chat', async (req, res, next) => {
       history = history.slice(-20);
     }
 
-    conversations.set(convId, history);
+    conversations.set(convId, { history, lastAccessedAt: Date.now() });
     cleanupConversations();
 
     res.json({
@@ -138,10 +140,22 @@ router.delete('/chat/:sessionId', (req, res) => {
 
 function cleanupConversations() {
   const now = Date.now();
-  for (const [key] of conversations) {
-    const timestamp = parseInt(key.split('_')[1], 10);
-    if (timestamp && now - timestamp > CONVERSATION_TTL) {
+
+  // Evict entries older than TTL
+  for (const [key, entry] of conversations) {
+    if (now - entry.lastAccessedAt > CONVERSATION_TTL) {
       conversations.delete(key);
+    }
+  }
+
+  // Cap at MAX_CONVERSATIONS by evicting oldest entries
+  if (conversations.size > MAX_CONVERSATIONS) {
+    const sorted = [...conversations.entries()].sort(
+      (a, b) => a[1].lastAccessedAt - b[1].lastAccessedAt
+    );
+    const toRemove = sorted.length - MAX_CONVERSATIONS;
+    for (let i = 0; i < toRemove; i++) {
+      conversations.delete(sorted[i][0]);
     }
   }
 }

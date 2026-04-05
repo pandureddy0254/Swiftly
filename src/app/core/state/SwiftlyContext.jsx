@@ -7,6 +7,7 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 const initialState = {
   boards: [],
+  boardsLoaded: false,
   selectedBoardIds: [],
   reportData: null,
   insights: [],
@@ -25,6 +26,7 @@ const SET_INSIGHTS = 'SET_INSIGHTS';
 const SET_BOARD_ITEMS = 'SET_BOARD_ITEMS';
 const SET_LOADING = 'SET_LOADING';
 const SET_ERROR = 'SET_ERROR';
+const SET_BOARDS_LOADED = 'SET_BOARDS_LOADED';
 const INVALIDATE_CACHE = 'INVALIDATE_CACHE';
 const INVALIDATE_BOARD_ITEMS = 'INVALIDATE_BOARD_ITEMS';
 const TOGGLE_BOARD = 'TOGGLE_BOARD';
@@ -59,6 +61,8 @@ function reducer(state, action) {
       return { ...state, loading: action.payload };
     case SET_ERROR:
       return { ...state, error: action.payload };
+    case SET_BOARDS_LOADED:
+      return { ...state, boardsLoaded: true };
     case INVALIDATE_CACHE:
       return {
         ...state,
@@ -114,6 +118,7 @@ export function SwiftlyProvider({ token, children }) {
       } catch (err) {
         dispatch({ type: SET_ERROR, payload: err.message });
       }
+      dispatch({ type: SET_BOARDS_LOADED });
     }
     loadBoards();
   }, [token]);
@@ -221,6 +226,7 @@ export function SwiftlyProvider({ token, children }) {
     state,
     token,
     boards: state.boards,
+    boardsLoaded: state.boardsLoaded,
     selectedBoardIds: state.selectedBoardIds,
     reportData: state.reportData,
     insights: state.insights,

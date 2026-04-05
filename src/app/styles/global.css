@@ -530,6 +530,46 @@ body {
   outline-offset: 2px;
 }
 
+/* Board Selector */
+.swiftly-board-selector {
+  margin-bottom: 0;
+}
+
+.swiftly-board-selector-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.swiftly-board-selector-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--swiftly-text);
+}
+
+.swiftly-board-selector-subtitle {
+  font-size: 13px;
+  color: var(--swiftly-text-tertiary, #676879);
+}
+
+.swiftly-board-selector-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--swiftly-primary);
+  background: rgba(0, 115, 234, 0.08);
+  padding: 2px 10px;
+  border-radius: 20px;
+  margin-left: auto;
+}
+
+.swiftly-board-selector-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 /* ============================================
    EXPORT BAR & BUTTONS
    ============================================ */
@@ -994,7 +1034,7 @@ body {
   font-size: 14px;
   font-weight: 500;
   z-index: 1000;
-  animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1), fadeOut 0.3s ease 3.2s forwards;
   box-shadow: var(--swiftly-shadow-lg);
   max-width: 420px;
   line-height: 1.5;
@@ -1932,6 +1972,10 @@ body {
   to { transform: translateY(0); opacity: 1; }
 }
 
+@keyframes fadeOut {
+  to { opacity: 0; transform: translateY(10px); }
+}
+
 @keyframes slideIn {
   from { transform: translateX(-12px); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
@@ -2114,6 +2158,14 @@ body {
 
   .swiftly-command-bar-stat strong {
     font-size: 18px;
+  }
+
+  .swiftly-board-selector-chips {
+    gap: 4px;
+  }
+  .swiftly-board-chip {
+    font-size: 12px;
+    padding: 4px 10px;
   }
 
   .swiftly-toast {

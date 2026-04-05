@@ -28,8 +28,16 @@ const config = {
 };
 
 export function validateConfig() {
-  if (!config.monday.apiToken) {
-    throw new Error('Missing required config: MONDAY_API_TOKEN');
+  if (!config.monday.signingSecret) {
+    // In production, signing secret is required to verify JWT session tokens.
+    // In dev, warn but allow startup with just an API token for local testing.
+    if (!config.isDev) {
+      throw new Error('Missing required config: MONDAY_SIGNING_SECRET (needed to verify marketplace session tokens)');
+    }
+    console.warn('[Swiftly] Warning: MONDAY_SIGNING_SECRET not set. JWT verification will fail; falling back to MONDAY_API_TOKEN for dev.');
+  }
+  if (!config.monday.signingSecret && !config.monday.apiToken) {
+    throw new Error('Missing required config: either MONDAY_SIGNING_SECRET or MONDAY_API_TOKEN must be set');
   }
 }
 

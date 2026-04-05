@@ -24,6 +24,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.0",
+    "jsonwebtoken": "^9.0.3",
     "monday-sdk-js": "^0.5.8",
     "monday-ui-react-core": "^2.149.0",
     "node-fetch": "^3.3.2",

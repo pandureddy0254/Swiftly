@@ -77,16 +77,16 @@ function App() {
         <div className="swiftly-fade-in" style={{ display: activeTab === 'dashboard' ? 'block' : 'none' }}>
           <DashboardView />
         </div>
-        <div style={{ display: activeTab === 'ai-chat' ? 'block' : 'none' }}>
+        <div className="swiftly-fade-in" style={{ display: activeTab === 'ai-chat' ? 'block' : 'none' }}>
           <AiChatView />
         </div>
-        <div style={{ display: activeTab === 'sprint' ? 'block' : 'none' }}>
+        <div className="swiftly-fade-in" style={{ display: activeTab === 'sprint' ? 'block' : 'none' }}>
           <SprintView />
         </div>
-        <div style={{ display: activeTab === 'time-tracking' ? 'block' : 'none' }}>
+        <div className="swiftly-fade-in" style={{ display: activeTab === 'time-tracking' ? 'block' : 'none' }}>
           <TimeTrackingView />
         </div>
-        <div style={{ display: activeTab === 'reports' ? 'block' : 'none' }}>
+        <div className="swiftly-fade-in" style={{ display: activeTab === 'reports' ? 'block' : 'none' }}>
           <ReportingView mode="reports" />
         </div>
       </SwiftlyProvider>

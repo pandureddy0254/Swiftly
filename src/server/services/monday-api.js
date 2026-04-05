@@ -7,32 +7,50 @@ const API_VERSION = config.monday.apiVersion;
  * Execute a GraphQL query against the Monday.com API.
  * Handles authentication, versioning, and error responses.
  */
-async function executeQuery(query, variables = {}, token = null) {
+async function executeQuery(query, variables = {}, token = null, retries = 3) {
   const apiToken = token || config.monday.apiToken;
 
-  const response = await fetch(MONDAY_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: apiToken,
-      'API-Version': API_VERSION,
-    },
-    body: JSON.stringify({ query, variables }),
-  });
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Monday API HTTP ${response.status}: ${text}`);
+    let response;
+    try {
+      response = await fetch(MONDAY_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: apiToken,
+          'API-Version': API_VERSION,
+        },
+        body: JSON.stringify({ query, variables }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (response.status === 429 && attempt < retries) {
+      const retryAfter = response.headers.get('retry-after');
+      const delay = retryAfter ? parseInt(retryAfter, 10) * 1000 : Math.pow(2, attempt) * 1000;
+      await new Promise((r) => setTimeout(r, delay));
+      continue;
+    }
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Monday API HTTP ${response.status}: ${text}`);
+    }
+
+    const result = await response.json();
+
+    if (result.errors) {
+      const messages = result.errors.map((e) => e.message).join('; ');
+      throw new Error(`Monday API error: ${messages}`);
+    }
+
+    return result.data;
   }
-
-  const result = await response.json();
-
-  if (result.errors) {
-    const messages = result.errors.map((e) => e.message).join('; ');
-    throw new Error(`Monday API error: ${messages}`);
-  }
-
-  return result.data;
 }
 
 /**
@@ -51,23 +69,36 @@ export async function getMe(token) {
  * Get all boards accessible to the user.
  * Supports pagination via cursor.
  */
-export async function getBoards(token, { limit = 25, cursor = null } = {}) {
-  const query = `query ($limit: Int!) {
-    boards(limit: $limit) {
-      id
-      name
-      description
-      state
-      board_kind
-      columns { id title type settings_str }
-      groups { id title color }
-      owners { id name }
-      items_count
-    }
-  }`;
+export async function getBoards(token) {
+  const allBoards = [];
+  let page = 1;
+  const limit = 200;
 
-  const data = await executeQuery(query, { limit }, token);
-  return data.boards;
+  while (true) {
+    const query = `query ($limit: Int!, $page: Int!) {
+      boards(limit: $limit, page: $page) {
+        id
+        name
+        description
+        state
+        board_kind
+        columns { id title type settings_str }
+        groups { id title color }
+        owners { id name }
+        items_count
+      }
+    }`;
+
+    const data = await executeQuery(query, { limit, page }, token);
+    const boards = data.boards || [];
+    allBoards.push(...boards);
+
+    if (boards.length < limit) break;
+    page++;
+    if (page > 10) break; // Safety cap at 2000 boards
+  }
+
+  return allBoards;
 }
 
 /**
