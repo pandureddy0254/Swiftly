@@ -3,6 +3,58 @@ import config from '../config/index.js';
 const MONDAY_API_URL = config.monday.apiUrl;
 const API_VERSION = config.monday.apiVersion;
 
+// Simple in-memory cache with 60s TTL to avoid redundant Monday.com API calls
+// within the same short window (e.g. multiple tabs loading simultaneously).
+const _cache = new Map();
+const CACHE_TTL_MS = 60_000;
+
+function getCached(key) {
+  const entry = _cache.get(key);
+  if (!entry) return undefined;
+  if (Date.now() - entry.ts > CACHE_TTL_MS) {
+    _cache.delete(key);
+    return undefined;
+  }
+  return entry.data;
+}
+
+function setCache(key, data) {
+  _cache.set(key, { data, ts: Date.now() });
+  // Evict old entries periodically
+  if (_cache.size > 500) {
+    const now = Date.now();
+    for (const [k, v] of _cache) {
+      if (now - v.ts > CACHE_TTL_MS) _cache.delete(k);
+    }
+  }
+}
+
+// Response-level cache for getCrossBoardItems (60-second TTL)
+const responseCache = new Map();
+const RESPONSE_CACHE_TTL = 60 * 1000;
+
+function getResponseCacheKey(token, boardIds) {
+  const tokenHash = token.slice(-8);
+  return `${tokenHash}_${[...boardIds].sort().join(',')}`;
+}
+
+function getCachedResponse(key) {
+  const cached = responseCache.get(key);
+  if (cached && Date.now() - cached.timestamp < RESPONSE_CACHE_TTL) {
+    return cached.data;
+  }
+  responseCache.delete(key);
+  return null;
+}
+
+function setCachedResponse(key, data) {
+  if (responseCache.size > 200) {
+    const oldest = responseCache.keys().next().value;
+    responseCache.delete(oldest);
+  }
+  responseCache.set(key, { data, timestamp: Date.now() });
+}
+
 /**
  * Execute a GraphQL query against the Monday.com API.
  * Handles authentication, versioning, and error responses.
@@ -105,6 +157,10 @@ export async function getBoards(token) {
  * Get a single board with full details.
  */
 export async function getBoard(token, boardId) {
+  const cacheKey = `board:${boardId}`;
+  const cached = getCached(cacheKey);
+  if (cached) return cached;
+
   const query = `query ($boardId: [ID!]!) {
     boards(ids: $boardId) {
       id
@@ -120,7 +176,9 @@ export async function getBoard(token, boardId) {
   }`;
 
   const data = await executeQuery(query, { boardId: [boardId] }, token);
-  return data.boards?.[0] || null;
+  const board = data.boards?.[0] || null;
+  if (board) setCache(cacheKey, board);
+  return board;
 }
 
 /**
@@ -197,43 +255,54 @@ export async function getAllBoardItems(token, boardId, maxItems = 500) {
  * This is the key differentiator — no existing app does this well.
  */
 export async function getCrossBoardItems(token, boardIds, { maxItemsPerBoard = 200 } = {}) {
-  const results = [];
+  const cacheKey = getResponseCacheKey(token, boardIds);
+  const cached = getCachedResponse(cacheKey);
+  if (cached) return cached;
 
-  for (const boardId of boardIds) {
-    let board = null;
-    let items = [];
+  const settled = await Promise.allSettled(
+    boardIds.map(async (boardId) => {
+      try {
+        // Fetch board metadata and items in parallel per board
+        const [board, items] = await Promise.all([
+          getBoard(token, boardId).catch((err) => {
+            console.warn(`[Swiftly] Failed to fetch board ${boardId}:`, err.message);
+            return null;
+          }),
+          getAllBoardItems(token, boardId, maxItemsPerBoard).catch((err) => {
+            console.warn(`[Swiftly] Failed to fetch items for board ${boardId}:`, err.message);
+            return [];
+          }),
+        ]);
 
-    try {
-      board = await getBoard(token, boardId);
-    } catch (err) {
-      console.warn(`[Swiftly] Failed to fetch board ${boardId}:`, err.message);
-    }
+        const boardName = board?.name || `Board ${boardId}`;
 
-    try {
-      items = await getAllBoardItems(token, boardId, maxItemsPerBoard);
-    } catch (err) {
-      console.warn(`[Swiftly] Failed to fetch items for board ${boardId}:`, err.message);
-    }
+        return {
+          boardId,
+          boardName,
+          name: boardName,          // duplicate for compatibility
+          columns: board?.columns || [],
+          groups: board?.groups || [],
+          items: items.map((item) => ({
+            ...item,
+            column_values: item.column_values || [],
+            group: item.group || { id: 'no_group', title: 'No Group' },
+            subitems: item.subitems || [],
+          })),
+          itemCount: items.length,
+          completedCount: items.filter((i) => i.state === 'done' || hasStatusDone(i)).length,
+        };
+      } catch (err) {
+        console.error(`Failed to fetch board ${boardId}:`, err.message);
+        return null;
+      }
+    })
+  );
 
-    const boardName = board?.name || `Board ${boardId}`;
+  const results = settled
+    .filter((r) => r.status === 'fulfilled' && r.value)
+    .map((r) => r.value);
 
-    results.push({
-      boardId,
-      boardName,
-      name: boardName,          // duplicate for compatibility
-      columns: board?.columns || [],
-      groups: board?.groups || [],
-      items: items.map((item) => ({
-        ...item,
-        column_values: item.column_values || [],
-        group: item.group || { id: 'no_group', title: 'No Group' },
-        subitems: item.subitems || [],
-      })),
-      itemCount: items.length,
-      completedCount: items.filter((i) => i.state === 'done' || hasStatusDone(i)).length,
-    });
-  }
-
+  setCachedResponse(cacheKey, results);
   return results;
 }
 

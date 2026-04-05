@@ -18,6 +18,17 @@ const TABS = [
 function App() {
   const { token, isReady, error, boardId, theme } = useMonday();
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [visitedTabs, setVisitedTabs] = useState(new Set(['dashboard']));
+
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    setVisitedTabs((prev) => {
+      if (prev.has(tabId)) return prev;
+      const next = new Set(prev);
+      next.add(tabId);
+      return next;
+    });
+  };
 
   if (error && !isReady) {
     return (
@@ -65,7 +76,7 @@ function App() {
             <button
               key={tab.id}
               className={`swiftly-tab ${activeTab === tab.id ? 'swiftly-tab--active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
             >
               <span className="swiftly-tab-icon">{tab.icon}</span>
               {tab.label}
@@ -73,22 +84,32 @@ function App() {
           ))}
         </div>
 
-        {/* Feature Views — all mounted, hidden with CSS to preserve state */}
-        <div className="swiftly-fade-in" style={{ display: activeTab === 'dashboard' ? 'block' : 'none' }}>
-          <DashboardView />
-        </div>
-        <div className="swiftly-fade-in" style={{ display: activeTab === 'ai-chat' ? 'block' : 'none' }}>
-          <AiChatView />
-        </div>
-        <div className="swiftly-fade-in" style={{ display: activeTab === 'sprint' ? 'block' : 'none' }}>
-          <SprintView />
-        </div>
-        <div className="swiftly-fade-in" style={{ display: activeTab === 'time-tracking' ? 'block' : 'none' }}>
-          <TimeTrackingView />
-        </div>
-        <div className="swiftly-fade-in" style={{ display: activeTab === 'reports' ? 'block' : 'none' }}>
-          <ReportingView mode="reports" />
-        </div>
+        {/* Feature Views — only mount visited tabs to avoid duplicate API calls */}
+        {visitedTabs.has('dashboard') && (
+          <div className="swiftly-fade-in" style={{ display: activeTab === 'dashboard' ? 'block' : 'none' }}>
+            <DashboardView />
+          </div>
+        )}
+        {visitedTabs.has('ai-chat') && (
+          <div className="swiftly-fade-in" style={{ display: activeTab === 'ai-chat' ? 'block' : 'none' }}>
+            <AiChatView />
+          </div>
+        )}
+        {visitedTabs.has('sprint') && (
+          <div className="swiftly-fade-in" style={{ display: activeTab === 'sprint' ? 'block' : 'none' }}>
+            <SprintView />
+          </div>
+        )}
+        {visitedTabs.has('time-tracking') && (
+          <div className="swiftly-fade-in" style={{ display: activeTab === 'time-tracking' ? 'block' : 'none' }}>
+            <TimeTrackingView />
+          </div>
+        )}
+        {visitedTabs.has('reports') && (
+          <div className="swiftly-fade-in" style={{ display: activeTab === 'reports' ? 'block' : 'none' }}>
+            <ReportingView mode="reports" />
+          </div>
+        )}
       </SwiftlyProvider>
     </div>
   );

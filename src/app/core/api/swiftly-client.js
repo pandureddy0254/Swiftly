@@ -18,6 +18,17 @@ async function request(endpoint, options = {}) {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    if (error.code === 'TOKEN_EXPIRED' && typeof window !== 'undefined' && window.mondaySdk) {
+      // Try to refresh token and retry
+      try {
+        const newToken = await window.mondaySdk.get('sessionToken');
+        if (newToken?.data) {
+          headers.Authorization = `Bearer ${newToken.data}`;
+          const retryResponse = await fetch(`${API_BASE}${endpoint}`, { method, headers, body: config.body });
+          if (retryResponse.ok) return retryResponse.json();
+        }
+      } catch { /* fall through to error */ }
+    }
     throw new Error(error.message || error.error || `HTTP ${response.status}`);
   }
 

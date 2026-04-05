@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import crypto from 'crypto';
 import mondayApi from '../services/monday-api.js';
 import aiEngine from '../services/ai-engine.js';
 
@@ -24,6 +25,14 @@ router.post('/chat', async (req, res, next) => {
       return res.status(400).json({ error: 'boardIds array is required' });
     }
 
+    if (boardIds.length > 20) {
+      return res.status(400).json({ error: 'Maximum 20 boards allowed' });
+    }
+
+    if (question.length > 5000) {
+      return res.status(400).json({ error: 'Question too long (max 5000 characters)' });
+    }
+
     // Fetch FULL item-level data (not just aggregated summaries)
     const crossBoardData = await mondayApi.getCrossBoardItems(req.mondayToken, boardIds, {
       maxItemsPerBoard: 200,
@@ -33,8 +42,9 @@ router.post('/chat', async (req, res, next) => {
     const richContext = buildRichContext(crossBoardData);
     const aggregated = mondayApi.aggregateBoardData(crossBoardData);
 
-    // Get or create conversation history
-    const convId = sessionId || `conv_${Date.now()}`;
+    // Get or create conversation history (keyed by user)
+    const userPrefix = req.mondayAccountId ? `${req.mondayAccountId}_${req.mondayUserId}_` : '';
+    const convId = sessionId ? `${userPrefix}${sessionId}` : `${userPrefix}conv_${crypto.randomUUID()}`;
     const entry = conversations.get(convId);
     let history = entry ? entry.history : [];
 
@@ -123,6 +133,10 @@ router.post('/insights', async (req, res, next) => {
       return res.status(400).json({ error: 'boardIds array is required' });
     }
 
+    if (boardIds.length > 20) {
+      return res.status(400).json({ error: 'Maximum 20 boards allowed' });
+    }
+
     const crossBoardData = await mondayApi.getCrossBoardItems(req.mondayToken, boardIds);
     const aggregated = mondayApi.aggregateBoardData(crossBoardData);
     const insights = await aiEngine.generateInsights(aggregated);
@@ -134,7 +148,8 @@ router.post('/insights', async (req, res, next) => {
 });
 
 router.delete('/chat/:sessionId', (req, res) => {
-  conversations.delete(req.params.sessionId);
+  const userPrefix = req.mondayAccountId ? `${req.mondayAccountId}_${req.mondayUserId}_` : '';
+  conversations.delete(`${userPrefix}${req.params.sessionId}`);
   res.json({ ok: true });
 });
 

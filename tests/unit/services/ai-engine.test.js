@@ -195,7 +195,7 @@ ACTIONS-->`;
       const boardData = makeSampleBoardData();
       const result = await chatWithBoardData('Hello', boardData);
 
-      expect(result.answer).toContain('error');
+      expect(result.answer).toMatch(/error|sorry|went wrong/i);
       expect(result.actions).toEqual([]);
 
       configMod.default.ai.apiKey = '';

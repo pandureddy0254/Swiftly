@@ -14,12 +14,17 @@ export function authenticateMonday() {
 
     // Dev/standalone mode fallback
     if (!token || token === 'standalone') {
-      if (config.monday.apiToken) {
+      if (config.isDev && config.monday.apiToken) {
         req.mondayToken = config.monday.apiToken;
         req.isStandalone = true;
         return next();
       }
-      return res.status(401).json({ error: 'No authentication token provided' });
+      return res.status(401).json({ error: 'Authentication required. Please open Swiftly inside monday.com.' });
+    }
+
+    // Guard against missing signing secret
+    if (!config.monday.signingSecret) {
+      return res.status(500).json({ error: 'Server configuration error' });
     }
 
     // Verify Monday.com JWT session token
@@ -52,11 +57,12 @@ export function verifyWebhookSignature() {
     if (!signature) {
       return res.status(401).json({ error: 'Missing webhook signature' });
     }
-    // Verify using signing secret
+    // Verify using signing secret (timing-safe comparison)
+    const sig = Buffer.from(signature, 'base64');
     const expected = crypto.createHmac('sha256', config.monday.signingSecret)
       .update(JSON.stringify(req.body))
-      .digest('base64');
-    if (signature !== expected) {
+      .digest();
+    if (!crypto.timingSafeEqual(sig, expected)) {
       return res.status(401).json({ error: 'Invalid webhook signature' });
     }
     next();

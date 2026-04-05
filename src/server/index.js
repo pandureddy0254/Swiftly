@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import config, { validateConfig } from './config/index.js';
@@ -17,11 +19,16 @@ validateConfig();
 
 const app = express();
 
+// --- Rate limiting ---
+const apiLimiter = rateLimit({ windowMs: 60000, max: 60, message: { error: 'Too many requests' } });
+const aiLimiter = rateLimit({ windowMs: 60000, max: 15, message: { error: 'Too many AI requests' } });
+
 // --- Middleware ---
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({
   origin: config.isDev ? true : /\.monday\.com$/,
 }));
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '512kb' }));
 
 // Request logging in dev
 if (config.isDev) {
@@ -34,6 +41,8 @@ if (config.isDev) {
 }
 
 // --- API Routes ---
+app.use('/api/ai', aiLimiter);
+app.use('/api', apiLimiter);
 app.use('/api/health', healthRoutes);
 app.use('/api', authenticateMonday(), reportingRoutes);
 app.use('/api/ai', authenticateMonday(), aiRoutes);

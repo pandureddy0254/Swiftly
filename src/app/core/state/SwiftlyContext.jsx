@@ -150,17 +150,14 @@ export function SwiftlyProvider({ token, children }) {
     dispatch({ type: SET_ERROR, payload: null });
 
     try {
-      const [reportResult, insightsResult] = await Promise.allSettled([
-        api.generateReport(token, boardIds, {
-          tone: 'professional',
-          audience: 'manager',
-          includeRecommendations: true,
-        }),
-        api.aiInsights(token, boardIds),
-      ]);
-
-      const report = reportResult.status === 'fulfilled' ? reportResult.value : null;
-      const insightsData = insightsResult.status === 'fulfilled' ? insightsResult.value : null;
+      // generateReport already returns insights from the server —
+      // no need for a separate aiInsights call (saves one full Monday API
+      // round-trip + one OpenRouter call).
+      const report = await api.generateReport(token, boardIds, {
+        tone: 'professional',
+        audience: 'manager',
+        includeRecommendations: true,
+      });
 
       if (!report) {
         dispatch({ type: SET_ERROR, payload: 'Failed to load report data. Please try again.' });
@@ -173,10 +170,7 @@ export function SwiftlyProvider({ token, children }) {
         payload: { reportData: report.data, boardIds: [...boardIds] },
       });
 
-      const allInsights = [
-        ...(report.insights || []),
-        ...(insightsData?.insights || []),
-      ];
+      const allInsights = report.insights || [];
       dispatch({ type: SET_INSIGHTS, payload: allInsights });
       dispatch({ type: SET_LOADING, payload: false });
 

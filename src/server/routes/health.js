@@ -8,6 +8,10 @@ const router = Router();
  * Health check endpoint for monitoring and Monday Code.
  */
 router.get('/', (req, res) => {
+  if (!config.isDev) {
+    return res.json({ status: 'ok' });
+  }
+
   res.json({
     status: 'ok',
     app: 'Swiftly',
