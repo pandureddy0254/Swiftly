@@ -266,6 +266,7 @@ body {
   height: 0;
   background: linear-gradient(135deg, rgba(0, 115, 234, 0.03) 0%, rgba(87, 155, 252, 0.02) 100%);
   transition: height 0.3s ease;
+  pointer-events: none;
 }
 
 .swiftly-card:hover {
