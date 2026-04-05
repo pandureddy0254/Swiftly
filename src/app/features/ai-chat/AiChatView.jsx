@@ -228,13 +228,13 @@ function AiChatView() {
           {boards.map((board) => (
             <button
               key={board.id}
-              onClick={() => toggleBoard(board.id)}
+              onClick={() => toggleBoard(String(board.id))}
               style={{
                 padding: '4px 12px',
                 borderRadius: 16,
-                border: `1px solid ${selectedBoardIds.includes(board.id) ? 'var(--swiftly-primary)' : 'var(--swiftly-border)'}`,
-                background: selectedBoardIds.includes(board.id) ? 'var(--swiftly-primary)' : 'white',
-                color: selectedBoardIds.includes(board.id) ? 'white' : 'var(--swiftly-text)',
+                border: `1px solid ${selectedBoardIds.includes(String(board.id)) ? 'var(--swiftly-primary)' : 'var(--swiftly-border)'}`,
+                background: selectedBoardIds.includes(String(board.id)) ? 'var(--swiftly-primary)' : 'white',
+                color: selectedBoardIds.includes(String(board.id)) ? 'white' : 'var(--swiftly-text)',
                 fontSize: 12,
                 cursor: 'pointer',
                 transition: 'all 0.2s',

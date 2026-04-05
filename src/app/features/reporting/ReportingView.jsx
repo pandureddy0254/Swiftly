@@ -411,8 +411,8 @@ function ReportingView({ mode = 'dashboard' }) {
           {boards.map((board) => (
             <button
               key={board.id}
-              onClick={() => toggleBoard(board.id)}
-              className={`swiftly-board-chip ${selectedBoardIds.includes(board.id) ? 'swiftly-board-chip--selected' : ''}`}
+              onClick={() => toggleBoard(String(board.id))}
+              className={`swiftly-board-chip ${selectedBoardIds.includes(String(board.id)) ? 'swiftly-board-chip--selected' : ''}`}
             >
               {board.name}
             </button>

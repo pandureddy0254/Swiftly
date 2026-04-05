@@ -109,15 +109,16 @@ export function SwiftlyProvider({ token, children }) {
   }, [token]);
 
   const setSelectedBoardIds = useCallback((ids) => {
-    dispatch({ type: SET_SELECTED_BOARDS, payload: ids });
+    dispatch({ type: SET_SELECTED_BOARDS, payload: ids.map(String) });
   }, []);
 
   const toggleBoard = useCallback((boardId) => {
+    const id = String(boardId);
     dispatch({
       type: SET_SELECTED_BOARDS,
-      payload: state.selectedBoardIds.includes(boardId)
-        ? state.selectedBoardIds.filter((id) => id !== boardId)
-        : [...state.selectedBoardIds, boardId],
+      payload: state.selectedBoardIds.includes(id)
+        ? state.selectedBoardIds.filter((x) => x !== id)
+        : [...state.selectedBoardIds, id],
     });
   }, [state.selectedBoardIds]);
 
