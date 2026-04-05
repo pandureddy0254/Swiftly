@@ -117,30 +117,30 @@ router.post('/json', async (req, res, next) => {
     // Build per-board item details for full export
     const boardDetails = crossBoardData.map((board) => ({
       boardId: board.boardId,
-      boardName: board.boardName,
-      columns: board.columns.map((c) => ({ id: c.id, title: c.title, type: c.type })),
-      groups: board.groups.map((g) => ({ id: g.id, title: g.title })),
+      boardName: board.boardName || board.name || `Board ${board.boardId}`,
+      columns: (board.columns || []).map((c) => ({ id: c.id, title: c.title, type: c.type })),
+      groups: (board.groups || []).map((g) => ({ id: g.id, title: g.title })),
       itemCount: board.itemCount,
       completedCount: board.completedCount,
-      items: board.items.map((item) => ({
+      items: (board.items || []).map((item) => ({
         id: item.id,
         name: item.name,
         state: item.state,
-        group: item.group?.title || null,
-        columnValues: item.column_values?.reduce((acc, cv) => {
+        group: item.group?.title || 'No Group',
+        columnValues: (item.column_values || []).reduce((acc, cv) => {
           const colTitle = cv.column?.title || cv.id;
           acc[colTitle] = cv.text || null;
           return acc;
-        }, {}) || {},
+        }, {}),
         subitems: (item.subitems || []).map((s) => ({
           id: s.id,
           name: s.name,
           state: s.state,
-          columnValues: s.column_values?.reduce((acc, cv) => {
+          columnValues: (s.column_values || []).reduce((acc, cv) => {
             const colTitle = cv.column?.title || cv.id;
             acc[colTitle] = cv.text || null;
             return acc;
-          }, {}) || {},
+          }, {}),
         })),
         createdAt: item.created_at,
         updatedAt: item.updated_at,

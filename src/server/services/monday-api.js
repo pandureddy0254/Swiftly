@@ -169,15 +169,35 @@ export async function getCrossBoardItems(token, boardIds, { maxItemsPerBoard = 2
   const results = [];
 
   for (const boardId of boardIds) {
-    const board = await getBoard(token, boardId);
-    const items = await getAllBoardItems(token, boardId, maxItemsPerBoard);
+    let board = null;
+    let items = [];
+
+    try {
+      board = await getBoard(token, boardId);
+    } catch (err) {
+      console.warn(`[Swiftly] Failed to fetch board ${boardId}:`, err.message);
+    }
+
+    try {
+      items = await getAllBoardItems(token, boardId, maxItemsPerBoard);
+    } catch (err) {
+      console.warn(`[Swiftly] Failed to fetch items for board ${boardId}:`, err.message);
+    }
+
+    const boardName = board?.name || `Board ${boardId}`;
 
     results.push({
       boardId,
-      boardName: board?.name || 'Unknown',
+      boardName,
+      name: boardName,          // duplicate for compatibility
       columns: board?.columns || [],
       groups: board?.groups || [],
-      items,
+      items: items.map((item) => ({
+        ...item,
+        column_values: item.column_values || [],
+        group: item.group || { id: 'no_group', title: 'No Group' },
+        subitems: item.subitems || [],
+      })),
       itemCount: items.length,
       completedCount: items.filter((i) => i.state === 'done' || hasStatusDone(i)).length,
     });
@@ -190,7 +210,7 @@ export async function getCrossBoardItems(token, boardIds, { maxItemsPerBoard = 2
  * Check if an item has a status column set to "Done" or similar.
  */
 function hasStatusDone(item) {
-  return item.column_values?.some((col) => {
+  return (item.column_values || []).some((col) => {
     if (col.type !== 'status') return false;
     const text = (col.text || '').toLowerCase();
     return text === 'done' || text === 'completed' || text === 'closed';
@@ -217,6 +237,7 @@ export function aggregateBoardData(crossBoardData) {
     const boardStats = {
       id: board.boardId,
       name: board.boardName,
+      boardName: board.boardName,  // both fields for compatibility
       totalItems: board.itemCount,
       completedItems: board.completedCount,
       progress: board.itemCount > 0
@@ -224,37 +245,36 @@ export function aggregateBoardData(crossBoardData) {
         : 0,
       subitems: 0,
       groups: {},
+      items: board.items || [],
     };
 
-    for (const item of board.items) {
+    for (const item of (board.items || [])) {
       report.totalItems++;
-      if (item.subitems) {
+      if (item.subitems && item.subitems.length > 0) {
         report.totalSubitems += item.subitems.length;
         boardStats.subitems += item.subitems.length;
       }
 
       // Status breakdown
-      const statusCol = item.column_values?.find((c) => c.type === 'status');
+      const statusCol = (item.column_values || []).find((c) => c.type === 'status');
       if (statusCol?.text) {
         const status = statusCol.text;
         report.statusBreakdown[status] = (report.statusBreakdown[status] || 0) + 1;
       }
 
       // Group breakdown
-      if (item.group?.title) {
-        const group = item.group.title;
-        boardStats.groups[group] = (boardStats.groups[group] || 0) + 1;
-        report.groupBreakdown[group] = (report.groupBreakdown[group] || 0) + 1;
-      }
+      const groupTitle = item.group?.title || 'No Group';
+      boardStats.groups[groupTitle] = (boardStats.groups[groupTitle] || 0) + 1;
+      report.groupBreakdown[groupTitle] = (report.groupBreakdown[groupTitle] || 0) + 1;
 
       // Timeline data
-      const dateCol = item.column_values?.find((c) => c.type === 'date');
+      const dateCol = (item.column_values || []).find((c) => c.type === 'date');
       if (dateCol?.text) {
         report.timelineData.push({
           date: dateCol.text,
           board: board.boardName,
           item: item.name,
-          status: statusCol?.text || 'Unknown',
+          status: statusCol?.text || 'No Status',
         });
       }
     }

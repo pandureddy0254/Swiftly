@@ -67,13 +67,13 @@ router.post('/chat', async (req, res, next) => {
  * Build rich context with every item name, status, dates, assignees, subitems.
  */
 function buildRichContext(crossBoardData) {
-  return crossBoardData.map((board) => ({
-    boardName: board.boardName,
+  return (crossBoardData || []).map((board) => ({
+    boardName: board.boardName || board.name || `Board ${board.boardId || '?'}`,
     boardId: board.boardId,
-    totalItems: board.items.length,
-    columns: board.columns.map((c) => ({ title: c.title, type: c.type })),
-    groups: board.groups.map((g) => g.title),
-    items: board.items.map((item) => {
+    totalItems: (board.items || []).length,
+    columns: (board.columns || []).map((c) => ({ title: c.title, type: c.type })),
+    groups: (board.groups || []).map((g) => typeof g === 'object' ? g.title : g),
+    items: (board.items || []).map((item) => {
       const itemData = {
         id: item.id,
         name: item.name,
@@ -84,12 +84,10 @@ function buildRichContext(crossBoardData) {
       };
 
       // Extract all column values into readable format
-      if (item.column_values) {
-        for (const col of item.column_values) {
-          const colName = col.column?.title || col.id;
-          if (col.text && col.text.trim()) {
-            itemData[colName] = col.text;
-          }
+      for (const col of (item.column_values || [])) {
+        const colName = col.column?.title || col.id;
+        if (col.text && col.text.trim()) {
+          itemData[colName] = col.text;
         }
       }
 
@@ -97,12 +95,10 @@ function buildRichContext(crossBoardData) {
       if (item.subitems && item.subitems.length > 0) {
         itemData.subitems = item.subitems.map((sub) => {
           const subData = { name: sub.name, state: sub.state };
-          if (sub.column_values) {
-            for (const col of sub.column_values) {
-              const colName = col.column?.title || col.id;
-              if (col.text && col.text.trim()) {
-                subData[colName] = col.text;
-              }
+          for (const col of (sub.column_values || [])) {
+            const colName = col.column?.title || col.id;
+            if (col.text && col.text.trim()) {
+              subData[colName] = col.text;
             }
           }
           return subData;

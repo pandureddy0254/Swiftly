@@ -26,19 +26,20 @@ export function generateReportHtml(reportData, aiReport = null, options = {}) {
   if (crossBoardData.length > 0) {
     itemDetailHtml = `<h2>Item Details by Board</h2>`;
     for (const board of crossBoardData) {
-      itemDetailHtml += `<h3>${escapeHtml(board.boardName)} (${board.itemCount} items)</h3>`;
-      if (board.items.length === 0) {
+      const boardDisplayName = board.boardName || board.name || `Board ${board.boardId || '?'}`;
+      itemDetailHtml += `<h3>${escapeHtml(boardDisplayName)} (${board.itemCount || 0} items)</h3>`;
+      if (!board.items || board.items.length === 0) {
         itemDetailHtml += `<p style="color:#676879;font-size:13px;">No items found.</p>`;
         continue;
       }
       itemDetailHtml += `<table><thead><tr>
         <th>Item</th><th style="text-align:center">Status</th><th style="text-align:center">Group</th><th style="text-align:center">Subitems</th>
       </tr></thead><tbody>`;
-      for (const item of board.items) {
-        const statusCol = item.column_values?.find((c) => c.type === 'status');
+      for (const item of (board.items || [])) {
+        const statusCol = (item.column_values || []).find((c) => c.type === 'status');
         const statusText = statusCol?.text || '-';
-        const groupText = item.group?.title || '-';
-        const subitemCount = item.subitems?.length || 0;
+        const groupText = item.group?.title || 'No Group';
+        const subitemCount = (item.subitems || []).length;
         itemDetailHtml += `<tr>
           <td style="font-weight:500">${escapeHtml(item.name)}</td>
           <td style="text-align:center">${escapeHtml(statusText)}</td>
@@ -175,10 +176,10 @@ export function generateReportHtml(reportData, aiReport = null, options = {}) {
     </tr>
   </thead>
   <tbody>
-    ${reportData.boards.map((b) => {
+    ${(reportData.boards || []).map((b) => {
       const cls = b.progress >= 75 ? 'green' : b.progress >= 40 ? 'orange' : 'red';
       return `<tr>
-        <td style="font-weight: 500">${escapeHtml(b.name)}</td>
+        <td style="font-weight: 500">${escapeHtml(b.name || b.boardName || 'Untitled Board')}</td>
         <td style="text-align: center">${b.totalItems}</td>
         <td style="text-align: center">${b.subitems}</td>
         <td style="text-align: center">${b.completedItems}</td>
@@ -273,8 +274,8 @@ export function generateReportText(reportData, options = {}) {
     '-'.repeat(40),
   ];
 
-  for (const board of reportData.boards) {
-    lines.push(`  ${board.name}`);
+  for (const board of (reportData.boards || [])) {
+    lines.push(`  ${board.name || board.boardName || 'Untitled Board'}`);
     lines.push(`    Progress: ${board.progress}% (${board.completedItems}/${board.totalItems} items, ${board.subitems} subitems)`);
     if (board.groups && Object.keys(board.groups).length > 0) {
       lines.push(`    Groups: ${Object.entries(board.groups).map(([g, c]) => `${g} (${c})`).join(', ')}`);
@@ -303,21 +304,22 @@ export function generateReportText(reportData, options = {}) {
     lines.push('', 'ITEMS BY BOARD', '-'.repeat(40));
     for (const board of crossBoardData) {
       lines.push('');
-      lines.push(`  Board: ${board.boardName} (${board.itemCount} items, ${board.completedCount} completed)`);
+      const txtBoardName = board.boardName || board.name || `Board ${board.boardId || '?'}`;
+      lines.push(`  Board: ${txtBoardName} (${board.itemCount || 0} items, ${board.completedCount || 0} completed)`);
       lines.push(`  ${'~'.repeat(50)}`);
-      if (board.items.length === 0) {
+      if (!board.items || board.items.length === 0) {
         lines.push('    No items found.');
         continue;
       }
       for (const item of board.items) {
-        const statusCol = item.column_values?.find((c) => c.type === 'status');
+        const statusCol = (item.column_values || []).find((c) => c.type === 'status');
         const statusText = statusCol?.text || 'No Status';
-        const groupText = item.group?.title || 'Default';
-        const subitemCount = item.subitems?.length || 0;
+        const groupText = item.group?.title || 'No Group';
+        const subitemCount = (item.subitems || []).length;
         lines.push(`    - ${item.name} [${statusText}] (Group: ${groupText}${subitemCount > 0 ? `, ${subitemCount} subitems` : ''})`);
         if (item.subitems && item.subitems.length > 0) {
           for (const sub of item.subitems) {
-            const subStatus = sub.column_values?.find((c) => c.type === 'status')?.text || '';
+            const subStatus = (sub.column_values || []).find((c) => c.type === 'status')?.text || '';
             lines.push(`        - ${sub.name}${subStatus ? ` [${subStatus}]` : ''}`);
           }
         }

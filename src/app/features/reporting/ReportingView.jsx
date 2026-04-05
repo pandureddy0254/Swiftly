@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, ResponsiveContainer, Legend } from 'recharts';
 import * as api from '@core/api/swiftly-client';
+import { useSwiftly } from '@core/state/useSwiftly';
 
 const CHART_COLORS = ['#0073ea', '#00ca72', '#fdab3d', '#e2445c', '#579bfc', '#a25ddc', '#037f4c', '#ff5ac4'];
 
@@ -259,14 +260,19 @@ function ChartEmptyState({ message }) {
   );
 }
 
-function ReportingView({ token, currentBoardId, mode = 'dashboard' }) {
-  const [boards, setBoards] = useState([]);
-  const [selectedBoardIds, setSelectedBoardIds] = useState([]);
+function ReportingView({ mode = 'dashboard' }) {
+  const {
+    token,
+    boards,
+    selectedBoardIds,
+    toggleBoard: ctxToggleBoard,
+    invalidateCache,
+  } = useSwiftly();
+
   const [reportData, setReportData] = useState(null);
   const [aiReport, setAiReport] = useState(null);
   const [insights, setInsights] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [loadingBoards, setLoadingBoards] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
@@ -332,34 +338,7 @@ function ReportingView({ token, currentBoardId, mode = 'dashboard' }) {
     }
   }, [token, selectedBoardIds]);
 
-  // Load available boards
-  useEffect(() => {
-    async function loadBoards() {
-      try {
-        const result = await api.getBoards(token);
-        setBoards(result.boards || []);
-
-        // Auto-select current board if available
-        if (currentBoardId) {
-          setSelectedBoardIds([String(currentBoardId)]);
-        }
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoadingBoards(false);
-      }
-    }
-    loadBoards();
-  }, [token, currentBoardId]);
-
-  // Toggle board selection
-  const toggleBoard = useCallback((boardId) => {
-    setSelectedBoardIds((prev) =>
-      prev.includes(boardId)
-        ? prev.filter((id) => id !== boardId)
-        : [...prev, boardId]
-    );
-  }, []);
+  const toggleBoard = ctxToggleBoard;
 
   // Generate report
   const generateReport = useCallback(async () => {
@@ -386,16 +365,19 @@ function ReportingView({ token, currentBoardId, mode = 'dashboard' }) {
   }, [token, selectedBoardIds]);
 
   // Prepare chart data safely
-  const barChartData = reportData?.boards?.map((b) => ({
-    name: b.name.length > 20 ? b.name.slice(0, 20) + '...' : b.name,
-    progress: b.progress,
-    items: b.totalItems,
-  })) || [];
+  const barChartData = reportData?.boards?.map((b) => {
+    const boardName = b.name || b.boardName || `Board ${b.id}`;
+    return {
+      name: boardName.length > 20 ? boardName.slice(0, 20) + '...' : boardName,
+      progress: b.progress,
+      items: b.totalItems,
+    };
+  }) || [];
 
   const statusEntries = reportData ? Object.entries(reportData.statusBreakdown) : [];
   const pieChartData = statusEntries.map(([name, value]) => ({ name, value }));
 
-  if (loadingBoards) {
+  if (boards.length === 0 && !error) {
     return (
       <div className="swiftly-loading">
         <div className="swiftly-spinner" />
@@ -583,7 +565,7 @@ function ReportingView({ token, currentBoardId, mode = 'dashboard' }) {
               <tbody>
                 {reportData.boards.map((board) => (
                   <tr key={board.id} style={{ borderBottom: '1px solid var(--swiftly-border)' }}>
-                    <td style={{ padding: '10px 12px', fontWeight: 500 }}>{board.name}</td>
+                    <td style={{ padding: '10px 12px', fontWeight: 500 }}>{board.name || board.boardName || `Board ${board.id}`}</td>
                     <td style={{ padding: '10px 12px', textAlign: 'center' }}>{board.totalItems}</td>
                     <td style={{ padding: '10px 12px', textAlign: 'center' }}>{board.subitems}</td>
                     <td style={{ padding: '10px 12px', textAlign: 'center' }}>{board.completedItems}</td>

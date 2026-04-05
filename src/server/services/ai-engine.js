@@ -113,13 +113,13 @@ Analyze the following project data and generate a clear, actionable status repor
 - Overall Progress: ${reportData.overallProgress}%
 
 **Board Breakdown:**
-${reportData.boards.map((b) => `- ${b.name}: ${b.progress}% complete (${b.completedItems}/${b.totalItems} items, ${b.subitems} subitems)`).join('\n')}
+${(reportData.boards || []).map((b) => `- ${b.name || b.boardName || 'Untitled Board'}: ${b.progress}% complete (${b.completedItems}/${b.totalItems} items, ${b.subitems} subitems)`).join('\n')}
 
 **Status Distribution:**
-${Object.entries(reportData.statusBreakdown).map(([status, count]) => `- ${status}: ${count} items`).join('\n')}
+${Object.entries(reportData.statusBreakdown || {}).map(([status, count]) => `- ${status}: ${count} items`).join('\n') || 'No status data'}
 
 **Group Distribution:**
-${Object.entries(reportData.groupBreakdown).map(([group, count]) => `- ${group}: ${count} items`).join('\n')}
+${Object.entries(reportData.groupBreakdown || {}).map(([group, count]) => `- ${group}: ${count} items`).join('\n') || 'No group data'}
 
 Generate a ${tone} status report for a ${audience} audience.
 
@@ -172,12 +172,13 @@ export async function chatWithBoardData(question, boardData, conversationHistory
 
   if (boards && boards.length > 0) {
     for (const board of boards) {
-      dataContext += `\n### Board: "${board.boardName}" (ID: ${board.boardId || 'unknown'}) — ${board.totalItems} items\n`;
-      dataContext += `Groups: ${board.groups.map(g => typeof g === 'object' ? `${g.title} (ID: ${g.id})` : g).join(', ') || 'Default'}\n`;
-      dataContext += `Columns: ${board.columns.map(c => `${c.title} (${c.type})`).join(', ')}\n`;
+      const boardDisplayName = board.boardName || board.name || `Board ${board.boardId || 'unknown'}`;
+      dataContext += `\n### Board: "${boardDisplayName}" (ID: ${board.boardId || 'unknown'}) — ${board.totalItems || 0} items\n`;
+      dataContext += `Groups: ${(board.groups || []).map(g => typeof g === 'object' ? `${g.title} (ID: ${g.id})` : g).join(', ') || 'Default'}\n`;
+      dataContext += `Columns: ${(board.columns || []).map(c => `${c.title} (${c.type})`).join(', ')}\n`;
       dataContext += `\nItems:\n`;
 
-      for (const item of board.items) {
+      for (const item of (board.items || [])) {
         const fields = Object.entries(item)
           .filter(([k]) => !['createdAt', 'updatedAt'].includes(k))
           .map(([k, v]) => {
@@ -466,9 +467,9 @@ function generateDataDrivenFallback(question, boardData) {
   // Handle common questions with real data
   if (q.includes('full detail') || q.includes('all item') || q.includes('list')) {
     let answer = '## All Items\n\n';
-    for (const board of boards) {
-      answer += `### ${board.boardName}\n`;
-      for (const item of board.items) {
+    for (const board of (boards || [])) {
+      answer += `### ${board.boardName || board.name || 'Untitled Board'}\n`;
+      for (const item of (board.items || [])) {
         answer += `- **${item.name}** (${item.state || 'active'})`;
         if (item.subitems) answer += ` — ${item.subitems.length} subitems`;
         answer += '\n';
@@ -480,18 +481,20 @@ function generateDataDrivenFallback(question, boardData) {
 
   if (q.includes('summary') || q.includes('overview')) {
     let answer = `## Summary\n\n`;
-    answer += `**${summary.totalBoards} boards** with **${summary.totalItems} items** (${summary.overallProgress}% complete)\n\n`;
-    for (const board of boards) {
-      answer += `### ${board.boardName}\n`;
-      answer += `${board.items.length} items: ${board.items.map(i => i.name).join(', ')}\n\n`;
+    answer += `**${summary?.totalBoards || 0} boards** with **${summary?.totalItems || 0} items** (${summary?.overallProgress || 0}% complete)\n\n`;
+    for (const board of (boards || [])) {
+      const bName = board.boardName || board.name || 'Untitled Board';
+      answer += `### ${bName}\n`;
+      answer += `${(board.items || []).length} items: ${(board.items || []).map(i => i.name).join(', ')}\n\n`;
     }
     return { answer, actions: [], tokensUsed: 0 };
   }
 
   // Default: list everything
-  let answer = `I have data for ${summary.totalBoards} boards with ${summary.totalItems} total items. AI-powered analysis requires an OpenRouter API key. Here's what I can see:\n\n`;
-  for (const board of boards) {
-    answer += `**${board.boardName}:** ${board.items.map(i => i.name).join(', ')}\n`;
+  let answer = `I have data for ${summary?.totalBoards || 0} boards with ${summary?.totalItems || 0} total items. AI-powered analysis requires an OpenRouter API key. Here's what I can see:\n\n`;
+  for (const board of (boards || [])) {
+    const bName = board.boardName || board.name || 'Untitled Board';
+    answer += `**${bName}:** ${(board.items || []).map(i => i.name).join(', ')}\n`;
   }
   return { answer, actions: [], tokensUsed: 0 };
 }
@@ -540,10 +543,10 @@ function generateFallbackReport(data) {
     `- **Progress:** ${data.overallProgress}%`,
     '',
     '## Board Progress',
-    ...data.boards.map((b) => `- **${b.name}:** ${b.progress}% (${b.completedItems}/${b.totalItems})`),
+    ...(data.boards || []).map((b) => `- **${b.name || b.boardName || 'Untitled Board'}:** ${b.progress}% (${b.completedItems}/${b.totalItems})`),
     '',
     '## Status Breakdown',
-    ...Object.entries(data.statusBreakdown).map(([s, c]) => `- ${s}: ${c}`),
+    ...Object.entries(data.statusBreakdown || {}).map(([s, c]) => `- ${s}: ${c}`),
   ];
 
   return { report: lines.join('\n'), model: 'fallback', tokensUsed: 0 };
@@ -565,14 +568,15 @@ function generateFallbackInsights(data) {
     });
   }
 
-  for (const board of data.boards) {
+  for (const board of (data.boards || [])) {
+    const bName = board.name || board.boardName || 'Untitled Board';
     if (board.progress < 25 && board.totalItems > 5) {
       insights.push({
         type: 'risk',
-        title: `${board.name} is behind schedule`,
+        title: `${bName} is behind schedule`,
         description: `Only ${board.progress}% complete with ${board.totalItems} items.`,
         severity: 'high',
-        board: board.name,
+        board: bName,
       });
     }
   }

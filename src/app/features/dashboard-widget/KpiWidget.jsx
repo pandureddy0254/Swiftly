@@ -216,10 +216,12 @@ function KpiWidget() {
       {data.boards.length > 1 && (
         <div style={styles.boardSection}>
           <span style={styles.sectionTitle}>Boards</span>
-          {data.boards.map((board) => (
+          {data.boards.map((board) => {
+            const bName = board.name || board.boardName || `Board ${board.id}`;
+            return (
             <div key={board.id} style={styles.boardRow}>
               <span style={styles.boardName}>
-                {board.name.length > 25 ? board.name.slice(0, 25) + '...' : board.name}
+                {bName.length > 25 ? bName.slice(0, 25) + '...' : bName}
               </span>
               <div style={styles.boardProgress}>
                 <div style={styles.boardProgressBar}>
@@ -236,7 +238,8 @@ function KpiWidget() {
                 </span>
               </div>
             </div>
-          ))}
+          );
+          })}
         </div>
       )}
     </div>

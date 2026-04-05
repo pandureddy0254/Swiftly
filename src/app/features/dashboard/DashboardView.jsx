@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import * as api from '@core/api/swiftly-client';
+import { useSwiftly } from '@core/state/useSwiftly';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -631,9 +632,23 @@ function generateSuggestions(reportData, allItems, boardItemsMap) {
 // ---------------------------------------------------------------------------
 // Main DashboardView Component
 // ---------------------------------------------------------------------------
-function DashboardView({ token, currentBoardId }) {
-  const [boards, setBoards] = useState([]);
-  const [selectedBoardIds, setSelectedBoardIds] = useState([]);
+function DashboardView() {
+  const {
+    token,
+    boards,
+    selectedBoardIds,
+    setSelectedBoardIds,
+    toggleBoard,
+    reportData: ctxReportData,
+    insights: ctxInsights,
+    loading: ctxLoading,
+    error: ctxError,
+    fetchDashboardData,
+    fetchBoardItems,
+    invalidateCache,
+    invalidateBoardItems,
+  } = useSwiftly();
+
   const [reportData, setReportData] = useState(null);
   const [aiInsightsData, setAiInsightsData] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
@@ -641,7 +656,6 @@ function DashboardView({ token, currentBoardId }) {
   const [healthBreakdown, setHealthBreakdown] = useState([]);
   const [boardItems, setBoardItems] = useState({});
   const [loading, setLoading] = useState(false);
-  const [loadingBoards, setLoadingBoards] = useState(true);
   const [toast, setToast] = useState(null);
   const [error, setError] = useState(null);
   const loadRef = useRef(0);
@@ -651,41 +665,19 @@ function DashboardView({ token, currentBoardId }) {
     setToast({ message, type });
   }, []);
 
-  /** Check if a board is the host "Swiftly" board or empty */
-  const isHostOrEmpty = useCallback((board) => {
-    const name = (board.name || board.boardName || '').toLowerCase();
-    if (name.includes('swiftly')) return true;
-    if (String(board.id) === String(currentBoardId) && (board.items_count === 0 || board.totalItems === 0)) return true;
-    return false;
-  }, [currentBoardId]);
-
-  // Load board list on mount, auto-select boards with items
+  // Auto-select boards on first load if none selected
   useEffect(() => {
-    async function loadBoards() {
-      try {
-        const result = await api.getBoards(token);
-        const allBoards = result.boards || [];
-        setBoards(allBoards);
-
-        // Auto-select all boards that likely have items, excluding the host board
-        if (!autoSelectedRef.current) {
-          autoSelectedRef.current = true;
-          const eligible = allBoards.filter((b) => !isHostOrEmpty(b));
-          if (eligible.length > 0) {
-            setSelectedBoardIds(eligible.map((b) => String(b.id)));
-          } else if (currentBoardId && !allBoards.find((b) => isHostOrEmpty(b) && String(b.id) === String(currentBoardId))) {
-            // Fallback: select current board only if it's not the host
-            setSelectedBoardIds([String(currentBoardId)]);
-          }
-        }
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoadingBoards(false);
+    if (boards.length > 0 && selectedBoardIds.length === 0 && !autoSelectedRef.current) {
+      autoSelectedRef.current = true;
+      const eligible = boards.filter((b) => {
+        const name = (b.name || '').toLowerCase();
+        return !name.includes('swiftly') && (b.items_count !== 0 && b.totalItems !== 0);
+      });
+      if (eligible.length > 0) {
+        setSelectedBoardIds(eligible.map((b) => String(b.id)));
       }
     }
-    loadBoards();
-  }, [token, currentBoardId, isHostOrEmpty]);
+  }, [boards, selectedBoardIds.length, setSelectedBoardIds]);
 
   // Auto-load dashboard when boards are selected
   useEffect(() => {
@@ -707,49 +699,38 @@ function DashboardView({ token, currentBoardId }) {
     setError(null);
 
     try {
-      // 1. Fetch report + AI insights in parallel
-      const [reportResult, insightsResult] = await Promise.allSettled([
-        api.generateReport(token, selectedBoardIds, {
-          tone: 'professional',
-          audience: 'manager',
-          includeRecommendations: true,
-        }),
-        api.aiInsights(token, selectedBoardIds),
-      ]);
+      // 1. Fetch report + AI insights via context (uses cache)
+      const result = await fetchDashboardData();
 
       if (loadId !== loadRef.current) return;
 
-      const report = reportResult.status === 'fulfilled' ? reportResult.value : null;
-      const insights = insightsResult.status === 'fulfilled' ? insightsResult.value : null;
-
-      if (!report) {
-        setError('Failed to load report data. Please try again.');
+      if (!result || !result.reportData) {
+        setError(ctxError || 'Failed to load report data. Please try again.');
         setLoading(false);
         return;
       }
 
+      const reportResult = result.reportData;
+
       // Normalize board names in report data
-      if (report.data?.boards) {
-        report.data.boards = report.data.boards.map((b) => ({
+      if (reportResult?.boards) {
+        reportResult.boards = reportResult.boards.map((b) => ({
           ...b,
           name: resolveBoardName(b),
         }));
       }
 
-      setReportData(report.data);
-      setAiInsightsData([
-        ...(report.insights || []),
-        ...(insights?.insights || []),
-      ]);
+      setReportData(reportResult);
+      setAiInsightsData(result.insights || []);
 
-      // 2. Fetch raw items per board for timeline + stale detection
+      // 2. Fetch raw items per board for timeline + stale detection (uses cache)
       const itemsMap = {};
       const itemFetches = selectedBoardIds.map(async (bid) => {
         try {
-          const res = await api.getBoardItems(token, bid);
-          const boardMeta = report.data?.boards?.find((b) => String(b.id) === String(bid));
+          const items = await fetchBoardItems(bid);
+          const boardMeta = reportResult?.boards?.find((b) => String(b.id) === String(bid));
           const boardName = boardMeta ? resolveBoardName(boardMeta) : (boards.find((b) => String(b.id) === String(bid))?.name || `Board ${bid}`);
-          itemsMap[bid] = (res.items || []).map((it) => ({
+          itemsMap[bid] = (items || []).map((it) => ({
             ...it,
             _boardId: bid,
             _boardName: boardName,
@@ -768,20 +749,21 @@ function DashboardView({ token, currentBoardId }) {
       const allItems = Object.values(itemsMap).flat();
 
       // 4. Calculate health score with breakdown
-      const { score, breakdown } = calculateHealthScore(report.data, allItems);
+      const { score, breakdown } = calculateHealthScore(reportResult, allItems);
       setHealthScore(score);
       setHealthBreakdown(breakdown);
 
       // 5. Generate rule-based suggestions
-      const ruleSuggestions = generateSuggestions(report.data, allItems, itemsMap);
+      const ruleSuggestions = generateSuggestions(reportResult, allItems, itemsMap);
 
       // 6. Merge with AI insights (convert AI insights into suggestion format)
-      const aiSuggestions = (report.insights || []).map((ins) => {
+      const reportInsights = result.report?.insights || result.insights || [];
+      const aiSuggestions = (Array.isArray(reportInsights) ? reportInsights : []).map((ins) => {
         // Resolve board name for AI insight
         const insBoardName = ins.board && ins.board !== 'Unknown'
           ? ins.board
           : ins.boardId
-            ? resolveBoardName(report.data?.boards?.find((b) => String(b.id) === String(ins.boardId)) || {})
+            ? resolveBoardName(reportResult?.boards?.find((b) => String(b.id) === String(ins.boardId)) || {})
             : null;
         return {
           id: `ai-${ins.title}`,
@@ -794,8 +776,9 @@ function DashboardView({ token, currentBoardId }) {
               key: `ai-action-${ins.boardId}-${ins.title}`,
               label: 'Create Action Plan',
               icon: '\uD83D\uDCCB',
-              handler: async (token) => {
-                await api.createItem(token, ins.boardId, `[Action Plan] ${ins.title}`, {}, null);
+              handler: async (tkn) => {
+                await api.createItem(tkn, ins.boardId, `[Action Plan] ${ins.title}`, {}, null);
+                invalidateCache();
               },
             },
             {
@@ -820,12 +803,6 @@ function DashboardView({ token, currentBoardId }) {
     }
   }
 
-  const toggleBoard = useCallback((boardId) => {
-    setSelectedBoardIds((prev) =>
-      prev.includes(boardId) ? prev.filter((id) => id !== boardId) : [...prev, boardId]
-    );
-  }, []);
-
   // Derived data
   const allItems = Object.values(boardItems).flat();
   const atRiskCount = allItems.filter((it) => {
@@ -836,7 +813,7 @@ function DashboardView({ token, currentBoardId }) {
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
-  if (loadingBoards) {
+  if (boards.length === 0 && !error) {
     return (
       <div className="swiftly-loading">
         <div className="swiftly-spinner" />
@@ -861,7 +838,7 @@ function DashboardView({ token, currentBoardId }) {
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {boards.map((board) => {
-            const isHost = isHostOrEmpty(board);
+            const isHost = (board.name || '').toLowerCase().includes('swiftly');
             return (
               <button
                 key={board.id}

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useMonday } from '@core/hooks/useMonday';
+import { SwiftlyProvider } from '@core/state/SwiftlyContext';
 import DashboardView from '@features/dashboard/DashboardView';
 import ReportingView from '@features/reporting/ReportingView';
 import AiChatView from '@features/ai-chat/AiChatView';
@@ -57,38 +58,30 @@ function App() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="swiftly-tabs">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            className={`swiftly-tab ${activeTab === tab.id ? 'swiftly-tab--active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            <span className="swiftly-tab-icon">{tab.icon}</span>
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <SwiftlyProvider token={token}>
+        {/* Tabs */}
+        <div className="swiftly-tabs">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              className={`swiftly-tab ${activeTab === tab.id ? 'swiftly-tab--active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              <span className="swiftly-tab-icon">{tab.icon}</span>
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-      {/* Feature Views */}
-      <div key={activeTab} className="swiftly-fade-in">
-        {activeTab === 'dashboard' && (
-          <DashboardView token={token} currentBoardId={boardId} />
-        )}
-        {activeTab === 'ai-chat' && (
-          <AiChatView token={token} currentBoardId={boardId} />
-        )}
-        {activeTab === 'sprint' && (
-          <SprintView token={token} currentBoardId={boardId} />
-        )}
-        {activeTab === 'time-tracking' && (
-          <TimeTrackingView token={token} currentBoardId={boardId} />
-        )}
-        {activeTab === 'reports' && (
-          <ReportingView token={token} currentBoardId={boardId} mode="reports" />
-        )}
-      </div>
+        {/* Feature Views */}
+        <div key={activeTab} className="swiftly-fade-in">
+          {activeTab === 'dashboard' && <DashboardView />}
+          {activeTab === 'ai-chat' && <AiChatView />}
+          {activeTab === 'sprint' && <SprintView />}
+          {activeTab === 'time-tracking' && <TimeTrackingView />}
+          {activeTab === 'reports' && <ReportingView mode="reports" />}
+        </div>
+      </SwiftlyProvider>
     </div>
   );
 }

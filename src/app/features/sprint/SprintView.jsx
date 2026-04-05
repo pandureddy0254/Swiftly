@@ -4,6 +4,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import * as api from '@core/api/swiftly-client';
+import { useSwiftly } from '@core/state/useSwiftly';
 
 // Constants
 const COLUMN_COLORS = {
@@ -363,12 +364,17 @@ function SprintSkeleton() {
 }
 
 // Main SprintView Component
-function SprintView({ token, currentBoardId }) {
-  const [boards, setBoards] = useState([]);
-  const [selectedBoardIds, setSelectedBoardIds] = useState([]);
+function SprintView() {
+  const {
+    token,
+    boards,
+    selectedBoardIds,
+    toggleBoard,
+    fetchDashboardData,
+  } = useSwiftly();
+
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [loadingBoards, setLoadingBoards] = useState(true);
   const [toast, setToast] = useState(null);
   const [error, setError] = useState(null);
   const loadRef = useRef(0);
@@ -376,31 +382,6 @@ function SprintView({ token, currentBoardId }) {
   const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type });
   }, []);
-
-  // Board toggle
-  const toggleBoard = useCallback((boardId) => {
-    setSelectedBoardIds((prev) =>
-      prev.includes(boardId) ? prev.filter((id) => id !== boardId) : [...prev, boardId],
-    );
-  }, []);
-
-  // Load boards on mount
-  useEffect(() => {
-    async function loadBoards() {
-      try {
-        const result = await api.getBoards(token);
-        setBoards(result.boards || []);
-        if (currentBoardId) {
-          setSelectedBoardIds([String(currentBoardId)]);
-        }
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoadingBoards(false);
-      }
-    }
-    loadBoards();
-  }, [token, currentBoardId]);
 
   // Auto-load sprint data when boards change
   useEffect(() => {
@@ -417,14 +398,22 @@ function SprintView({ token, currentBoardId }) {
     setError(null);
 
     try {
-      const reportResult = await api.generateReport(token, selectedBoardIds, {
-        tone: 'professional',
-        audience: 'developer',
-        includeRecommendations: false,
-      });
-
+      // Use the shared context fetch which has caching
+      const result = await fetchDashboardData();
       if (loadId !== loadRef.current) return;
-      setReportData(reportResult.data);
+
+      if (result && result.reportData) {
+        setReportData(result.reportData);
+      } else {
+        // Fallback: direct API call if context fetch returns null
+        const reportResult = await api.generateReport(token, selectedBoardIds, {
+          tone: 'professional',
+          audience: 'developer',
+          includeRecommendations: false,
+        });
+        if (loadId !== loadRef.current) return;
+        setReportData(reportResult.data);
+      }
     } catch (err) {
       if (loadId !== loadRef.current) return;
       setError(err.message || 'Failed to load sprint data.');
@@ -436,14 +425,24 @@ function SprintView({ token, currentBoardId }) {
     // Derived sprint data
     const sprintData = useMemo(() => {
     if (!reportData?.boards) {
-      return { items: [], columns: { backlog: [], todo: [], inProgress: [], done: [] }, stuck: [], totalPoints: 0, completedPoints: 0, boardName: '' };
+      return { items: [], columns: { backlog: [], todo: [], inProgress: [], done: [] }, stuck: [], totalPoints: 0, completedPoints: 0, boardName: '', hasStatusColumn: true };
     }
 
-    const allItems = reportData.boards.flatMap((b) => b.items || []);
+    const allItems = reportData.boards.flatMap((b) => (b.items || []).map((item) => ({
+      ...item,
+      column_values: item.column_values || [],
+      group: item.group || { id: 'no_group', title: 'No Group' },
+      subitems: item.subitems || [],
+    })));
     const columns = { backlog: [], todo: [], inProgress: [], done: [] };
     const stuckItems = [];
     let totalPoints = 0;
     let completedPoints = 0;
+
+    // Detect if ANY item has a status column
+    const hasStatusColumn = allItems.some((item) =>
+      (item.column_values || []).some((c) => c.type === 'status')
+    );
 
     allItems.forEach((item) => {
       const statusText = getStatusText(item);
@@ -471,7 +470,7 @@ function SprintView({ token, currentBoardId }) {
 
     // Derive board name for header
     const boardName = reportData.boards.length === 1
-      ? reportData.boards[0].name
+      ? (reportData.boards[0].name || reportData.boards[0].boardName || `Board ${reportData.boards[0].id}`)
       : `${reportData.boards.length} Boards`;
 
     return {
@@ -484,6 +483,7 @@ function SprintView({ token, currentBoardId }) {
       totalCount,
       progress,
       boardName,
+      hasStatusColumn,
     };
   }, [reportData]);
 
@@ -492,7 +492,7 @@ function SprintView({ token, currentBoardId }) {
     : '\u2014';
 
     // Render
-    if (loadingBoards) {
+    if (boards.length === 0 && !error) {
     return (
       <div className="swiftly-loading">
         <div className="swiftly-spinner" />
@@ -625,6 +625,44 @@ function SprintView({ token, currentBoardId }) {
               sprintDays={14}
             />
           </div>
+
+          {/* No Status Column Warning */}
+          {!sprintData.hasStatusColumn && sprintData.totalCount > 0 && (
+            <div className="swiftly-card" style={{ borderLeft: '4px solid var(--swiftly-warning)', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0' }}>
+                <span style={{ fontSize: 20 }}>{'\u26A0\uFE0F'}</span>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--swiftly-text)' }}>
+                    Add a Status column to your board for sprint tracking
+                  </div>
+                  <div style={{ fontSize: 13, color: 'var(--swiftly-text-secondary)', marginTop: 2 }}>
+                    Without a Status column, all items appear in Backlog. Add a Status column in monday.com to enable kanban tracking.
+                  </div>
+                </div>
+              </div>
+              {/* Show all items in a simple list */}
+              <div style={{ marginTop: 12, maxHeight: 300, overflowY: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid var(--swiftly-border)' }}>
+                      <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--swiftly-text-secondary)', fontWeight: 500 }}>Item</th>
+                      <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--swiftly-text-secondary)', fontWeight: 500 }}>Group</th>
+                      <th style={{ textAlign: 'center', padding: '8px 12px', color: 'var(--swiftly-text-secondary)', fontWeight: 500 }}>Estimate</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sprintData.items.map((item) => (
+                      <tr key={item.id} style={{ borderBottom: '1px solid var(--swiftly-border)' }}>
+                        <td style={{ padding: '8px 12px', fontWeight: 500 }}>{item.name}</td>
+                        <td style={{ padding: '8px 12px', color: 'var(--swiftly-text-secondary)' }}>{item.group?.title || 'No Group'}</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'center' }}>{getEstimateLabel(item) || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Kanban Board */}
           <div className="swiftly-card" style={{ padding: 16, marginBottom: 16 }}>

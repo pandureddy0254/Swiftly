@@ -77,15 +77,20 @@ router.post('/reports/generate', async (req, res, next) => {
 
     // Enrich insights with boardId by matching board name
     const boardNameToId = {};
-    for (const board of aggregated.boards) {
-      boardNameToId[board.name] = board.id;
+    for (const board of (aggregated.boards || [])) {
+      const bName = board.name || board.boardName;
+      if (bName) boardNameToId[bName] = board.id;
+      // Also index by boardName if different from name
+      if (board.boardName && board.boardName !== bName) {
+        boardNameToId[board.boardName] = board.id;
+      }
     }
 
     const insights = (rawInsights || []).map((insight) => {
       const enriched = { ...insight };
       if (insight.board && boardNameToId[insight.board]) {
         enriched.boardId = String(boardNameToId[insight.board]);
-      } else if (aggregated.boards.length === 1) {
+      } else if (aggregated.boards && aggregated.boards.length === 1) {
         // If only one board, always link to it
         enriched.boardId = String(aggregated.boards[0].id);
       }

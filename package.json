@@ -12,8 +12,11 @@
     "start": "node src/server/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "lint": "eslint src/"
+    "lint": "eslint src/",
+    "predeploy": "node scripts/pre-deploy.js",
+    "deploy": "npm run predeploy && git push origin main"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.1.0",

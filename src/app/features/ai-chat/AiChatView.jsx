@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as api from '@core/api/swiftly-client';
+import { useSwiftly } from '@core/state/useSwiftly';
 
 const SUGGESTED_QUESTIONS = [
   'What is the overall progress across all boards?',
@@ -126,9 +127,15 @@ function formatMessageContent(content) {
   });
 }
 
-function AiChatView({ token, currentBoardId }) {
-  const [boards, setBoards] = useState([]);
-  const [selectedBoardIds, setSelectedBoardIds] = useState([]);
+function AiChatView() {
+  const {
+    token,
+    boards,
+    selectedBoardIds,
+    toggleBoard: ctxToggleBoard,
+    invalidateCache,
+  } = useSwiftly();
+
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -136,34 +143,12 @@ function AiChatView({ token, currentBoardId }) {
   const [toast, setToast] = useState(null);
   const messagesEndRef = useRef(null);
 
-  // Load boards
-  useEffect(() => {
-    async function loadBoards() {
-      try {
-        const result = await api.getBoards(token);
-        setBoards(result.boards || []);
-        if (currentBoardId) {
-          setSelectedBoardIds([String(currentBoardId)]);
-        }
-      } catch (err) {
-        console.error('Failed to load boards:', err);
-      }
-    }
-    loadBoards();
-  }, [token, currentBoardId]);
-
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const toggleBoard = useCallback((boardId) => {
-    setSelectedBoardIds((prev) =>
-      prev.includes(boardId)
-        ? prev.filter((id) => id !== boardId)
-        : [...prev, boardId]
-    );
-  }, []);
+  const toggleBoard = ctxToggleBoard;
 
   const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type });
@@ -180,11 +165,12 @@ function AiChatView({ token, currentBoardId }) {
     try {
       const result = await api.aiChat(token, question, selectedBoardIds, sessionId);
       setSessionId(result.sessionId);
+      const answerText = result.answer || result.response || result.message || 'No response received. Please try again.';
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content: result.answer,
+          content: answerText,
           actions: result.actions || [],
           tokensUsed: result.tokensUsed,
         },
@@ -212,7 +198,8 @@ function AiChatView({ token, currentBoardId }) {
 
   const handleActionSuccess = useCallback((action) => {
     showToast(`${action.label} completed successfully`);
-  }, [showToast]);
+    invalidateCache();
+  }, [showToast, invalidateCache]);
 
   const handleActionError = useCallback((errorMsg) => {
     showToast(`Action failed: ${errorMsg}`, 'error');

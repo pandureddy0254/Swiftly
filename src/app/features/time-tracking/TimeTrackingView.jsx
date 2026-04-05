@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import * as api from '@core/api/swiftly-client';
+import { useSwiftly } from '@core/state/useSwiftly';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -516,11 +517,14 @@ function TimeLogTable({ logs, onToggleBillable, onDeleteLog }) {
 // ---------------------------------------------------------------------------
 // Main Component
 // ---------------------------------------------------------------------------
-export default function TimeTrackingView({ token, currentBoardId }) {
-  // Boards
-  const [boards, setBoards] = useState([]);
-  const [selectedBoardIds, setSelectedBoardIds] = useState([]);
-  const [loadingBoards, setLoadingBoards] = useState(true);
+export default function TimeTrackingView() {
+  const {
+    token,
+    boards,
+    selectedBoardIds,
+    toggleBoard: ctxToggleBoard,
+    fetchBoardItems,
+  } = useSwiftly();
 
   // Items for quick start
   const [allItems, setAllItems] = useState([]);
@@ -545,25 +549,7 @@ export default function TimeTrackingView({ token, currentBoardId }) {
   const [toast, setToast] = useState(null);
   const showToast = useCallback((message, type = 'success') => setToast({ message, type }), []);
 
-  // ------ Load boards ------
-  useEffect(() => {
-    async function loadBoards() {
-      try {
-        const result = await api.getBoards(token);
-        setBoards(result.boards || []);
-        if (currentBoardId) {
-          setSelectedBoardIds([String(currentBoardId)]);
-        }
-      } catch (err) {
-        showToast('Failed to load boards: ' + err.message, 'error');
-      } finally {
-        setLoadingBoards(false);
-      }
-    }
-    loadBoards();
-  }, [token, currentBoardId, showToast]);
-
-  // ------ Load items when boards change ------
+  // ------ Load items when boards change (uses cached board items) ------
   useEffect(() => {
     if (selectedBoardIds.length === 0) {
       setAllItems([]);
@@ -577,11 +563,10 @@ export default function TimeTrackingView({ token, currentBoardId }) {
         const results = await Promise.all(
           selectedBoardIds.map(async (boardId) => {
             const board = boards.find((b) => String(b.id) === boardId);
-            const boardName = board?.name || 'Unknown';
-            const result = await api.getBoardItems(token, boardId);
-            const items = result.items || [];
+            const boardName = board?.name || board?.boardName || `Board ${boardId}`;
+            const items = await fetchBoardItems(boardId);
             const mapped = [];
-            items.forEach((item) => {
+            (items || []).forEach((item) => {
               mapped.push({
                 id: item.id,
                 name: item.name,
@@ -617,7 +602,7 @@ export default function TimeTrackingView({ token, currentBoardId }) {
     }
     loadItems();
     return () => { cancelled = true; };
-  }, [selectedBoardIds, boards, token, showToast]);
+  }, [selectedBoardIds, boards, fetchBoardItems, showToast]);
 
   // ------ Timer tick ------
   useEffect(() => {
@@ -644,14 +629,7 @@ export default function TimeTrackingView({ token, currentBoardId }) {
     saveLogs(logs);
   }, [logs]);
 
-  // ------ Toggle board ------
-  const toggleBoard = useCallback((boardId) => {
-    setSelectedBoardIds((prev) =>
-      prev.includes(boardId)
-        ? prev.filter((id) => id !== boardId)
-        : [...prev, boardId]
-    );
-  }, []);
+  const toggleBoard = ctxToggleBoard;
 
   // ------ Start timer ------
   const startTimer = useCallback((item) => {
@@ -743,7 +721,7 @@ export default function TimeTrackingView({ token, currentBoardId }) {
   }, [stopTimer]);
 
   // ------ Loading state ------
-  if (loadingBoards) {
+  if (boards.length === 0) {
     return (
       <div className="swiftly-loading">
         <div className="swiftly-spinner" />
