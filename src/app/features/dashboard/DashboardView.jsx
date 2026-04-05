@@ -30,6 +30,11 @@ function scoreColor(score) {
   return 'var(--swiftly-danger)';
 }
 
+/** Resolve board name from various field patterns */
+function resolveBoardName(board) {
+  return board?.name || board?.boardName || board?.board_name || `Board ${board?.id || '?'}`;
+}
+
 // ---------------------------------------------------------------------------
 // Toast
 // ---------------------------------------------------------------------------
@@ -62,9 +67,10 @@ function ActionBtn({ label, icon, onClick, loading, done }) {
 }
 
 // ---------------------------------------------------------------------------
-// Health Gauge (circular SVG)
+// Health Gauge (circular SVG) with breakdown tooltip
 // ---------------------------------------------------------------------------
-function HealthGauge({ score }) {
+function HealthGauge({ score, breakdown }) {
+  const [showTip, setShowTip] = useState(false);
   const radius = 70;
   const stroke = 10;
   const circumference = 2 * Math.PI * radius;
@@ -72,7 +78,11 @@ function HealthGauge({ score }) {
   const color = scoreColor(score);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+    <div
+      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}
+      onMouseEnter={() => setShowTip(true)}
+      onMouseLeave={() => setShowTip(false)}
+    >
       <svg width={180} height={180} viewBox="0 0 180 180">
         <circle
           cx="90" cy="90" r={radius}
@@ -93,6 +103,21 @@ function HealthGauge({ score }) {
           Health Score
         </text>
       </svg>
+      {showTip && breakdown && (
+        <div style={{
+          position: 'absolute', bottom: -8, left: '50%', transform: 'translateX(-50%) translateY(100%)',
+          background: 'var(--swiftly-card-bg, #fff)', border: '1px solid var(--swiftly-border)',
+          borderRadius: 8, padding: '10px 14px', fontSize: 12, zIndex: 10, minWidth: 200,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+        }}>
+          {breakdown.map((b) => (
+            <div key={b.label} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '2px 0' }}>
+              <span style={{ color: 'var(--swiftly-text-secondary)' }}>{b.label}</span>
+              <span style={{ fontWeight: 600 }}>{b.points}/{b.max}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -113,11 +138,9 @@ function DashboardSkeleton() {
   return (
     <div>
       <style>{`@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }`}</style>
-      {/* Gauge placeholder */}
       <div className="swiftly-card" style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
         <div style={{ width: 180, height: 180, borderRadius: '50%', background: 'var(--swiftly-border)', opacity: 0.4 }} />
       </div>
-      {/* KPI row */}
       <div className="swiftly-grid swiftly-grid-4">
         {[1, 2, 3, 4].map((i) => (
           <div key={i} className="swiftly-card swiftly-stat" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
@@ -126,7 +149,6 @@ function DashboardSkeleton() {
           </div>
         ))}
       </div>
-      {/* Cards */}
       {[1, 2].map((i) => (
         <div key={i} className="swiftly-card" style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 24 }}>
           {bar('45%')}
@@ -166,7 +188,7 @@ function SuggestionCard({ suggestion, token, onToast }) {
       <div style={{ flex: 1 }}>
         <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{suggestion.title}</div>
         <div style={{ fontSize: 13, color: 'var(--swiftly-text-secondary)' }}>{suggestion.description}</div>
-        {suggestion.board && (
+        {suggestion.board && suggestion.board !== 'Unknown' && (
           <div style={{ fontSize: 12, color: 'var(--swiftly-text-secondary)', marginTop: 4 }}>Board: {suggestion.board}</div>
         )}
         {suggestion.actions && suggestion.actions.length > 0 && (
@@ -189,10 +211,13 @@ function SuggestionCard({ suggestion, token, onToast }) {
 }
 
 // ---------------------------------------------------------------------------
-// Board Overview Mini-Card
+// Board Overview Mini-Card (enhanced)
 // ---------------------------------------------------------------------------
 function BoardMiniCard({ board, items, token, onToast }) {
   const [showItems, setShowItems] = useState(false);
+  const boardName = resolveBoardName(board);
+  const subItemCount = (items || []).reduce((sum, it) => sum + (it.subitems?.length || 0), 0);
+  const topItems = (items || []).slice(0, 3);
   const urgentItems = (items || [])
     .filter((it) => {
       const status = it.column_values?.find((c) => c.type === 'status');
@@ -203,16 +228,29 @@ function BoardMiniCard({ board, items, token, onToast }) {
   return (
     <div className="swiftly-card" style={{ padding: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontWeight: 600, fontSize: 14 }}>{board.name}</span>
-        <span style={{ fontSize: 12, color: 'var(--swiftly-text-secondary)' }}>{board.totalItems} items</span>
+        <span style={{ fontWeight: 600, fontSize: 14 }}>{boardName}</span>
+        <span style={{ fontSize: 12, color: 'var(--swiftly-text-secondary)' }}>
+          {board.totalItems} items{subItemCount > 0 ? ` / ${subItemCount} subs` : ''}
+        </span>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <div className="swiftly-progress" style={{ flex: 1 }}>
-          <div className={`swiftly-progress-fill ${progressClass(board.progress)}`} style={{ width: `${board.progress}%` }} />
+          <div className={`swiftly-progress-fill ${progressClass(board.progress || 0)}`} style={{ width: `${board.progress || 0}%` }} />
         </div>
-        <span style={{ fontSize: 13, fontWeight: 600, minWidth: 36 }}>{board.progress}%</span>
+        <span style={{ fontSize: 13, fontWeight: 600, minWidth: 36 }}>{board.progress || 0}%</span>
       </div>
+
+      {/* Top items preview */}
+      {topItems.length > 0 && (
+        <div style={{ marginBottom: 10 }}>
+          {topItems.map((it) => (
+            <div key={it.id} style={{ fontSize: 12, color: 'var(--swiftly-text-secondary)', padding: '2px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {it.name}
+            </div>
+          ))}
+        </div>
+      )}
 
       {urgentItems.length > 0 && (
         <div style={{ marginBottom: 10 }}>
@@ -242,15 +280,18 @@ function BoardMiniCard({ board, items, token, onToast }) {
               <tr style={{ borderBottom: '1px solid var(--swiftly-border)' }}>
                 <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--swiftly-text-secondary)', fontWeight: 500 }}>Item</th>
                 <th style={{ textAlign: 'center', padding: '4px 6px', color: 'var(--swiftly-text-secondary)', fontWeight: 500 }}>Status</th>
+                <th style={{ textAlign: 'center', padding: '4px 6px', color: 'var(--swiftly-text-secondary)', fontWeight: 500 }}>Assignee</th>
               </tr>
             </thead>
             <tbody>
               {items.slice(0, 20).map((it) => {
                 const status = it.column_values?.find((c) => c.type === 'status');
+                const person = it.column_values?.find((c) => c.type === 'people' || c.type === 'multiple-person');
                 return (
                   <tr key={it.id} style={{ borderBottom: '1px solid var(--swiftly-border)' }}>
                     <td style={{ padding: '4px 6px' }}>{it.name}</td>
                     <td style={{ padding: '4px 6px', textAlign: 'center' }}>{status?.text || '-'}</td>
+                    <td style={{ padding: '4px 6px', textAlign: 'center', fontSize: 11 }}>{person?.text || '-'}</td>
                   </tr>
                 );
               })}
@@ -300,7 +341,7 @@ function ActivityTimeline({ allItems }) {
                 {ev.item}
               </div>
               <div style={{ fontSize: 11, color: 'var(--swiftly-text-secondary)' }}>
-                {ev.type === 'created' ? 'Created' : 'Updated'} &middot; {ev.board} &middot; {new Date(ev.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                {ev.type === 'created' ? 'Created' : 'Updated'} &middot; {ev.board || 'Board'} &middot; {new Date(ev.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
               </div>
             </div>
           </div>
@@ -311,44 +352,101 @@ function ActivityTimeline({ allItems }) {
 }
 
 // ---------------------------------------------------------------------------
-// Health Score Calculation
+// Quick Actions Bar
+// ---------------------------------------------------------------------------
+function QuickActions() {
+  const actions = [
+    { label: 'Generate Report', icon: '\uD83D\uDCCA', tab: 'reports' },
+    { label: 'Ask AI', icon: '\uD83E\uDD16', tab: 'ai-agent' },
+    { label: 'Start Timer', icon: '\u23F1\uFE0F', tab: 'time-tracking' },
+    { label: 'View Sprint', icon: '\uD83C\uDFC3', tab: 'sprint' },
+  ];
+
+  const handleClick = (tab) => {
+    try {
+      localStorage.setItem('swiftly-desired-tab', tab);
+      window.parent.postMessage({ type: 'swiftly-switch-tab', tab }, '*');
+    } catch { /* noop */ }
+  };
+
+  return (
+    <div className="swiftly-card">
+      <div className="swiftly-card-header">
+        <span className="swiftly-card-title">Quick Actions</span>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+        {actions.map((a) => (
+          <button
+            key={a.tab}
+            className="swiftly-action-btn"
+            style={{ fontSize: 12, padding: '8px 16px' }}
+            onClick={() => handleClick(a.tab)}
+          >
+            <span>{a.icon}</span> {a.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Health Score Calculation (weighted, with breakdown)
 // ---------------------------------------------------------------------------
 function calculateHealthScore(reportData, allItems) {
-  if (!reportData || allItems.length === 0) return 0;
+  const breakdown = [];
+  if (!reportData || allItems.length === 0) {
+    return { score: 0, breakdown: [] };
+  }
 
   let score = 0;
   const total = allItems.length || 1;
+
+  // +15: boards have items at all
+  const hasItemsPts = Math.min(15, allItems.length > 0 ? 15 : 0);
+  score += hasItemsPts;
+  breakdown.push({ label: 'Has items', points: hasItemsPts, max: 15 });
 
   // +20: items with status columns configured
   const withStatus = allItems.filter((it) => {
     const s = it.column_values?.find((c) => c.type === 'status');
     return s && s.text;
   }).length;
-  score += Math.round((withStatus / total) * 20);
+  const statusPts = Math.round((withStatus / total) * 20);
+  score += statusPts;
+  breakdown.push({ label: 'Statuses set', points: statusPts, max: 20 });
 
-  // +20: items with assignees (people column)
+  // +20: items with assignees
   const withAssignee = allItems.filter((it) => {
     const p = it.column_values?.find((c) => c.type === 'people' || c.type === 'multiple-person');
     return p && p.text;
   }).length;
-  score += Math.round((withAssignee / total) * 20);
+  const assigneePts = Math.round((withAssignee / total) * 20);
+  score += assigneePts;
+  breakdown.push({ label: 'Assignees', points: assigneePts, max: 20 });
 
-  // +20: items with due dates (date column)
+  // +20: items with due dates
   const withDueDate = allItems.filter((it) => {
     const d = it.column_values?.find((c) => c.type === 'date' || c.type === 'timeline');
     return d && d.text;
   }).length;
-  score += Math.round((withDueDate / total) * 20);
+  const datePts = Math.round((withDueDate / total) * 20);
+  score += datePts;
+  breakdown.push({ label: 'Due dates', points: datePts, max: 20 });
 
-  // +20: items completed
+  // +15: items completed
   const completed = reportData.completedItems || 0;
-  score += Math.round((completed / total) * 20);
+  const completedPts = Math.round((completed / total) * 15);
+  score += completedPts;
+  breakdown.push({ label: 'Completion', points: completedPts, max: 15 });
 
-  // +20: items updated in last 7 days
+  // +10: items updated in last 7 days
   const recentlyUpdated = allItems.filter((it) => daysSince(it.updated_at) <= STALE_DAYS).length;
-  score += Math.round((recentlyUpdated / total) * 20);
+  const recentPts = Math.round((recentlyUpdated / total) * 10);
+  score += recentPts;
+  breakdown.push({ label: 'Recent activity', points: recentPts, max: 10 });
 
-  return Math.min(100, Math.max(0, score));
+  return { score: Math.min(100, Math.max(0, score)), breakdown };
 }
 
 // ---------------------------------------------------------------------------
@@ -506,13 +604,14 @@ function generateSuggestions(reportData, allItems, boardItemsMap) {
   // Board has only one group
   if (reportData.boards) {
     reportData.boards.forEach((board) => {
+      const bName = resolveBoardName(board);
       if (board.groups && board.groups.length <= 1 && board.totalItems > 5) {
         suggestions.push({
           id: `single-group-${board.id}`,
-          title: `"${board.name}" has all items in one group`,
+          title: `"${bName}" has all items in one group`,
           description: 'Organizing items into groups (phases, sprints, categories) improves visibility and planning.',
           severity: 'info',
-          board: board.name,
+          board: bName,
           actions: [{
             key: `organize-${board.id}`,
             label: 'Create Organization Plan',
@@ -539,25 +638,45 @@ function DashboardView({ token, currentBoardId }) {
   const [aiInsightsData, setAiInsightsData] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
   const [healthScore, setHealthScore] = useState(0);
+  const [healthBreakdown, setHealthBreakdown] = useState([]);
   const [boardItems, setBoardItems] = useState({});
   const [loading, setLoading] = useState(false);
   const [loadingBoards, setLoadingBoards] = useState(true);
   const [toast, setToast] = useState(null);
   const [error, setError] = useState(null);
   const loadRef = useRef(0);
+  const autoSelectedRef = useRef(false);
 
   const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type });
   }, []);
 
-  // Load board list on mount
+  /** Check if a board is the host "Swiftly" board or empty */
+  const isHostOrEmpty = useCallback((board) => {
+    const name = (board.name || board.boardName || '').toLowerCase();
+    if (name.includes('swiftly')) return true;
+    if (String(board.id) === String(currentBoardId) && (board.items_count === 0 || board.totalItems === 0)) return true;
+    return false;
+  }, [currentBoardId]);
+
+  // Load board list on mount, auto-select boards with items
   useEffect(() => {
     async function loadBoards() {
       try {
         const result = await api.getBoards(token);
-        setBoards(result.boards || []);
-        if (currentBoardId) {
-          setSelectedBoardIds([String(currentBoardId)]);
+        const allBoards = result.boards || [];
+        setBoards(allBoards);
+
+        // Auto-select all boards that likely have items, excluding the host board
+        if (!autoSelectedRef.current) {
+          autoSelectedRef.current = true;
+          const eligible = allBoards.filter((b) => !isHostOrEmpty(b));
+          if (eligible.length > 0) {
+            setSelectedBoardIds(eligible.map((b) => String(b.id)));
+          } else if (currentBoardId && !allBoards.find((b) => isHostOrEmpty(b) && String(b.id) === String(currentBoardId))) {
+            // Fallback: select current board only if it's not the host
+            setSelectedBoardIds([String(currentBoardId)]);
+          }
         }
       } catch (err) {
         setError(err.message);
@@ -566,18 +685,18 @@ function DashboardView({ token, currentBoardId }) {
       }
     }
     loadBoards();
-  }, [token, currentBoardId]);
+  }, [token, currentBoardId, isHostOrEmpty]);
 
   // Auto-load dashboard when boards are selected
   useEffect(() => {
     if (selectedBoardIds.length > 0) {
       loadDashboard();
     } else {
-      // Clear data when no boards selected
       setReportData(null);
       setAiInsightsData([]);
       setSuggestions([]);
       setHealthScore(0);
+      setHealthBreakdown([]);
       setBoardItems({});
     }
   }, [selectedBoardIds]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -598,7 +717,7 @@ function DashboardView({ token, currentBoardId }) {
         api.aiInsights(token, selectedBoardIds),
       ]);
 
-      if (loadId !== loadRef.current) return; // stale
+      if (loadId !== loadRef.current) return;
 
       const report = reportResult.status === 'fulfilled' ? reportResult.value : null;
       const insights = insightsResult.status === 'fulfilled' ? insightsResult.value : null;
@@ -607,6 +726,14 @@ function DashboardView({ token, currentBoardId }) {
         setError('Failed to load report data. Please try again.');
         setLoading(false);
         return;
+      }
+
+      // Normalize board names in report data
+      if (report.data?.boards) {
+        report.data.boards = report.data.boards.map((b) => ({
+          ...b,
+          name: resolveBoardName(b),
+        }));
       }
 
       setReportData(report.data);
@@ -621,10 +748,11 @@ function DashboardView({ token, currentBoardId }) {
         try {
           const res = await api.getBoardItems(token, bid);
           const boardMeta = report.data?.boards?.find((b) => String(b.id) === String(bid));
+          const boardName = boardMeta ? resolveBoardName(boardMeta) : (boards.find((b) => String(b.id) === String(bid))?.name || `Board ${bid}`);
           itemsMap[bid] = (res.items || []).map((it) => ({
             ...it,
             _boardId: bid,
-            _boardName: boardMeta?.name || `Board ${bid}`,
+            _boardName: boardName,
           }));
         } catch {
           itemsMap[bid] = [];
@@ -632,44 +760,53 @@ function DashboardView({ token, currentBoardId }) {
       });
       await Promise.all(itemFetches);
 
-      if (loadId !== loadRef.current) return; // stale
+      if (loadId !== loadRef.current) return;
 
       setBoardItems(itemsMap);
 
       // 3. Flatten all items
       const allItems = Object.values(itemsMap).flat();
 
-      // 4. Calculate health score
-      const score = calculateHealthScore(report.data, allItems);
+      // 4. Calculate health score with breakdown
+      const { score, breakdown } = calculateHealthScore(report.data, allItems);
       setHealthScore(score);
+      setHealthBreakdown(breakdown);
 
       // 5. Generate rule-based suggestions
       const ruleSuggestions = generateSuggestions(report.data, allItems, itemsMap);
 
       // 6. Merge with AI insights (convert AI insights into suggestion format)
-      const aiSuggestions = (report.insights || []).map((ins) => ({
-        id: `ai-${ins.title}`,
-        title: ins.title,
-        description: ins.description,
-        severity: ins.severity === 'high' ? 'critical' : ins.severity === 'medium' ? 'warning' : 'info',
-        board: ins.board,
-        actions: ins.boardId ? [
-          {
-            key: `ai-action-${ins.boardId}-${ins.title}`,
-            label: 'Create Action Plan',
-            icon: '\uD83D\uDCCB',
-            handler: async (token) => {
-              await api.createItem(token, ins.boardId, `[Action Plan] ${ins.title}`, {}, null);
+      const aiSuggestions = (report.insights || []).map((ins) => {
+        // Resolve board name for AI insight
+        const insBoardName = ins.board && ins.board !== 'Unknown'
+          ? ins.board
+          : ins.boardId
+            ? resolveBoardName(report.data?.boards?.find((b) => String(b.id) === String(ins.boardId)) || {})
+            : null;
+        return {
+          id: `ai-${ins.title}`,
+          title: ins.title,
+          description: ins.description,
+          severity: ins.severity === 'high' ? 'critical' : ins.severity === 'medium' ? 'warning' : 'info',
+          board: insBoardName,
+          actions: ins.boardId ? [
+            {
+              key: `ai-action-${ins.boardId}-${ins.title}`,
+              label: 'Create Action Plan',
+              icon: '\uD83D\uDCCB',
+              handler: async (token) => {
+                await api.createItem(token, ins.boardId, `[Action Plan] ${ins.title}`, {}, null);
+              },
             },
-          },
-          {
-            key: `ai-view-${ins.boardId}`,
-            label: 'View Board Items',
-            icon: '\uD83D\uDD0D',
-            handler: async () => {},
-          },
-        ] : [],
-      }));
+            {
+              key: `ai-view-${ins.boardId}`,
+              label: 'View Board Items',
+              icon: '\uD83D\uDD0D',
+              handler: async () => {},
+            },
+          ] : [],
+        };
+      });
 
       setSuggestions([...ruleSuggestions, ...aiSuggestions]);
     } catch (err) {
@@ -723,15 +860,20 @@ function DashboardView({ token, currentBoardId }) {
           </span>
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {boards.map((board) => (
-            <button
-              key={board.id}
-              onClick={() => toggleBoard(board.id)}
-              className={`swiftly-board-chip ${selectedBoardIds.includes(board.id) ? 'swiftly-board-chip--selected' : ''}`}
-            >
-              {board.name}
-            </button>
-          ))}
+          {boards.map((board) => {
+            const isHost = isHostOrEmpty(board);
+            return (
+              <button
+                key={board.id}
+                onClick={() => toggleBoard(board.id)}
+                className={`swiftly-board-chip ${selectedBoardIds.includes(board.id) ? 'swiftly-board-chip--selected' : ''}`}
+                style={isHost ? { opacity: 0.5 } : undefined}
+                title={isHost ? 'Host board (auto-excluded)' : board.name}
+              >
+                {board.name}
+              </button>
+            );
+          })}
           {boards.length === 0 && (
             <span style={{ fontSize: 13, color: 'var(--swiftly-text-secondary)' }}>No boards available</span>
           )}
@@ -758,7 +900,7 @@ function DashboardView({ token, currentBoardId }) {
           <div className="swiftly-grid swiftly-grid-2" style={{ alignItems: 'stretch' }}>
             {/* Health Gauge Card */}
             <div className="swiftly-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <HealthGauge score={healthScore} />
+              <HealthGauge score={healthScore} breakdown={healthBreakdown} />
             </div>
 
             {/* Quick Metrics */}
@@ -815,6 +957,9 @@ function DashboardView({ token, currentBoardId }) {
               </div>
             </div>
           )}
+
+          {/* Quick Actions */}
+          <QuickActions />
 
           {/* Status Distribution (compact pie) */}
           {reportData.statusBreakdown && Object.keys(reportData.statusBreakdown).length > 0 && (
